@@ -1,0 +1,11 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1280, "h": 800 },
+    { "file": "Floating.dc.html", "x": 1360, "y": 0, "w": 1280, "h": 800 }
+  ],
+  "annotations": [
+    { "id": "note-a", "x": 0, "y": -90, "w": 560, "text": "Opción A — Inspector lateral\nCrop y Color viven en un panel fijo a la derecha con tabs. Mute es un toggle rápido abajo del panel. El preview se reduce un poco para dejar sitio al panel." },
+    { "id": "note-b", "x": 1360, "y": -90, "w": 560, "text": "Opción B — Toolbar flotante\nCrop, Speed, Mute y Color viven en una barra flotante sobre el timeline. Cada herramienta abre un popover. El preview usa todo el ancho de la ventana." }
+  ],
+  "launch": { "view": "canvas" }
+}

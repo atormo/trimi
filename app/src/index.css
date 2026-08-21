@@ -1,0 +1,190 @@
+:root {
+  /* ink-blue studio surfaces — depth comes from layers instead of gray outlines */
+  --bg-window: #0c1220;
+  --bg-panel-solid: #151d2d;
+  --bg-chip: #202a3d;
+  --bg-chip-hover: #29364c;
+  --bg-dropzone: #18345f;
+  --bg-dropzone-active: #1d4f91;
+  --border: rgba(151, 176, 218, 0.12);
+  --border-strong: rgba(171, 194, 230, 0.18);
+  --text-1: #f7f9fd;
+  --text-2: #aebbd0;
+  --text-3: #71819b;
+
+  /* primary = neutral, per shadcn's default button (inverted fill vs. ink) */
+  --accent: #f7f9fd;
+  --accent-ink: #101827;
+
+  /* muted, sparingly-used per-section accents — dots, badges, handles only, never large fills */
+  --tool-trim: #fb7185;
+  --tool-trim-strong: #f43f5e;
+  --tool-crop: #fbbf24;
+  --tool-speed: #34d399;
+  --tool-color: #38bdf8;
+  --tool-audio: #a78bfa;
+  --danger: #f87171;
+  --danger-solid: #c92f42;
+  --brand-blue: #a9d4fb;
+
+  /* fixed dark ink for text sitting on a bright, non-theme-flipped fill (tool-crop, brand-blue) */
+  --ink-solid: #101827;
+  --ink-muted: rgba(16, 24, 39, 0.68);
+
+  --bg-stage: #11192a;
+  --stage-dot: rgba(174, 195, 228, 0.11);
+  --island-shadow: 0 1px 2px rgba(0, 0, 0, 0.28), 0 16px 40px rgba(0, 0, 0, 0.22);
+  --control-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), 0 4px 12px rgba(0, 0, 0, 0.12);
+  --image-outline: rgba(255, 255, 255, 0.1);
+
+  --radius-lg: 10px;
+  --radius-md: 8px;
+  --radius-sm: 6px;
+
+  color-scheme: dark;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+[data-theme="light"] {
+  --bg-window: #eef3f9;
+  --bg-panel-solid: #ffffff;
+  --bg-chip: #f1f5fa;
+  --bg-chip-hover: #e7eef7;
+  --bg-dropzone: #cfe4ff;
+  --bg-dropzone-active: #acd2ff;
+  --border: rgba(77, 104, 147, 0.14);
+  --border-strong: rgba(63, 91, 136, 0.2);
+  --text-1: #172033;
+  --text-2: #53627a;
+  --text-3: #8a98ad;
+
+  --accent: #172033;
+  --accent-ink: #ffffff;
+
+  --bg-stage: #ffffff;
+  --stage-dot: rgba(54, 81, 123, 0.12);
+  --island-shadow: 0 1px 2px rgba(40, 60, 92, 0.08), 0 12px 30px rgba(45, 70, 108, 0.07);
+  --control-shadow: 0 1px 2px rgba(40, 60, 92, 0.1), 0 4px 12px rgba(45, 70, 108, 0.06);
+  --image-outline: rgba(0, 0, 0, 0.1);
+
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background: var(--bg-window);
+}
+
+button {
+  font-family: inherit;
+}
+
+.upload-icon-feedback {
+  transform: translateY(0) scale(1);
+  transform-origin: center;
+  transition: transform 180ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.drop-zone[data-pointer-pressed="true"] .upload-icon-feedback {
+  transform: translateY(-4px) scale(0.95);
+  transition-duration: 120ms;
+}
+
+.new-video-menu {
+  opacity: 0;
+  transform: translateY(-4px) scale(0.97);
+  transform-origin: top left;
+  pointer-events: none;
+}
+
+.new-video-menu[data-motion="true"] {
+  transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.new-video-menu[data-open="true"] {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+
+.new-video-menu button {
+  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.new-video-menu button:active {
+  transform: scale(0.96);
+}
+
+.transport-island {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.transport-island[data-dragging="true"],
+.transport-island[data-dragging="true"] * {
+  cursor: grabbing;
+}
+
+.video-canvas-item[data-dragging="true"] {
+  cursor: grabbing !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .upload-icon-feedback {
+    transform: none !important;
+    transition: none;
+  }
+
+  .new-video-menu,
+  .new-video-menu button {
+    transition: none;
+  }
+}
+
+.trimi-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 16px;
+}
+.trimi-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-1);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+  margin-top: 0;
+  transition: transform 0.12s ease;
+}
+.trimi-range::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+.trimi-range::-webkit-slider-runnable-track {
+  background: transparent;
+}
+.trimi-range::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: var(--text-1);
+  box-shadow: 0 0 0 1px var(--border-strong);
+  cursor: pointer;
+}
+.trimi-range::-moz-range-track {
+  background: transparent;
+}

@@ -1,0 +1,23 @@
+# OS / editor cruft
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# Dependencies & build output (per-workspace .gitignore files also cover these)
+node_modules
+dist
+dist-ssr
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Local tool session artifacts (Playwright CLI logs/snapshots) — not project source
+.playwright-cli
+
+# Secrets — never committed, set via the host's env/secret manager instead
+.env
+.env.*
+!.env.example
