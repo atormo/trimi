@@ -281,10 +281,12 @@ The real constraints are per-user, not concurrency: a very large source file can
 
 #### 5.2.1 The gate, concretely
 
-- App loads → checks `localStorage` for a previously activated `{ key, activation_id }` and calls `/validate`.
-- Valid → the editor renders exactly as it does today.
-- Locked → instead of the drop zone: *"trimi is a one-time €15 purchase."* One input for the license key, a primary **Activate** button (calls `/activate`), a secondary **Buy trimi — €15** link to trimi.app, and a note that the key also works in the buyer's Polar purchase portal if they need to switch devices without access to the old one.
-- This is a UX + light anti-sharing gate (one seat, so casual sharing becomes a tug-of-war between two people), not DRM — same proportionate stance as before, just enforced by Polar's activation limit instead of our own signature check.
+- App loads → if `localStorage` has a previously activated `{ key, activation_id }`, show a brief "Checking your license…" state and call `/validate`. **The editor never renders on the strength of that stored value alone** — only a live `status: "granted"` response unlocks it. This matters: `localStorage` is entirely attacker-controlled (one line in devtools sets any `key`/`activation_id`), so unlocking optimistically before confirming would mean a forged entry plus a blocked network request (or just being offline) grants permanent access. Requiring a real round-trip on every boot closes that off — see the security note below.
+  - `/validate` returns `granted` → unlocked, the editor renders exactly as it does today.
+  - `/validate` definitively rejects it (404/422 — not found, malformed, revoked) → the stored value is cleared and the buyer sees the normal locked gate.
+  - `/validate` can't be reached at all (offline, DNS hiccup) → a distinct "Couldn't verify your license — check your connection" screen with **Retry**, keeping the stored key for the retry rather than discarding it. Not unlocked, not permanently locked out either — an honest third state instead of guessing.
+- No stored value at all → the locked gate directly: *"Unlock Trimi forever with your key."* One input, a primary **Activate** button (calls `/activate`), and a **Buy Trimi — €15** link to trimi.app.
+- This is a UX + light anti-sharing gate (one seat, so casual sharing becomes a tug-of-war between two people), not DRM — same proportionate stance as before, just enforced by Polar's activation limit instead of our own signature check. The real ceiling: no purely client-side check can stop someone willing to open devtools and intercept the network call itself or patch the running code — that's true of any web app's client-side gate, signed key or not, and isn't worth chasing for a €15 utility. What *is* worth closing is exactly the class of "paste one line into the console" tricks that don't require any of that, which the always-live-validate design above does.
 
 #### 5.2.2 What we store, and what we don't
 

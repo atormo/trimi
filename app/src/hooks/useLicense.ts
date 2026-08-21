@@ -38,6 +38,7 @@ function deviceLabel(): string {
 export type LicenseState =
   | { status: "checking" }
   | { status: "locked" }
+  | { status: "offline" }
   | { status: "unlocked"; key: string; activationId: string };
 
 export function useLicense() {
@@ -46,6 +47,34 @@ export function useLicense() {
   const [activating, setActivating] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const bootChecked = useRef(false);
+
+  // The app never unlocks on the strength of localStorage alone — that's attacker-controlled
+  // (one line pasted into devtools sets any key/activationId it likes). Every boot needs a real,
+  // live "granted" response from Polar before rendering anything. A stored license that can't be
+  // verified right now shows a retry screen, not the editor — see TRIMI-PLAN.md §5.2.1.
+  const verify = useCallback((stored: StoredLicense) => {
+    setState({ status: "checking" });
+    validateLicense(stored.key, stored.activationId)
+      .then(({ status }) => {
+        if (status === "granted") {
+          setState({ status: "unlocked", key: stored.key, activationId: stored.activationId });
+        } else {
+          writeStored(null);
+          setState({ status: "locked" });
+        }
+      })
+      .catch((err) => {
+        if (err instanceof LicenseError && err.reason === "not_found") {
+          // Definitive rejection: revoked, or deactivated elsewhere (e.g. via Polar's own portal).
+          writeStored(null);
+          setState({ status: "locked" });
+        } else {
+          // Couldn't reach Polar at all — keep the stored key (it may well still be valid) but
+          // don't unlock on an unverified claim. Retry re-runs this same check.
+          setState({ status: "offline" });
+        }
+      });
+  }, []);
 
   useEffect(() => {
     if (bootChecked.current) return;
@@ -56,25 +85,14 @@ export function useLicense() {
       setState({ status: "locked" });
       return;
     }
-    // Optimistic: unlock immediately from the stored activation, then confirm in the background.
-    // Only a definitive "this activation no longer exists" response should ever re-lock — a
-    // network hiccup or a flaky response must not lock out someone who's already paid.
-    setState({ status: "unlocked", key: stored.key, activationId: stored.activationId });
-    validateLicense(stored.key, stored.activationId)
-      .then(({ status }) => {
-        if (status !== "granted") {
-          writeStored(null);
-          setState({ status: "locked" });
-        }
-      })
-      .catch((err) => {
-        if (err instanceof LicenseError && err.reason === "not_found") {
-          writeStored(null);
-          setState({ status: "locked" });
-        }
-        // network / unknown: stay unlocked on the strength of the stored activation.
-      });
-  }, []);
+    verify(stored);
+  }, [verify]);
+
+  const retry = useCallback(() => {
+    const stored = readStored();
+    if (stored) verify(stored);
+    else setState({ status: "locked" });
+  }, [verify]);
 
   const activate = useCallback(async (rawKey: string) => {
     const key = rawKey.trim();
@@ -111,5 +129,5 @@ export function useLicense() {
     }
   }, [state]);
 
-  return { state, activate, activating, activateError, unlink, unlinking };
+  return { state, activate, activating, activateError, unlink, unlinking, retry };
 }

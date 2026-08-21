@@ -32,7 +32,9 @@ async function polarPost<T>(path: string, body: Record<string, unknown>): Promis
     throw new LicenseError("network", "Couldn't reach the license server — check your connection.");
   }
 
-  if (response.status === 404) {
+  if (response.status === 404 || response.status === 422) {
+    // 422 shows up for a malformed activation_id (e.g. a forged one that isn't even a valid v4
+    // UUID) — functionally the same "this isn't a real, valid credential" outcome as a 404.
     throw new LicenseError("not_found", "That doesn't look like a valid trimi license key.");
   }
   if (response.status === 403) {

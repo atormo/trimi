@@ -173,9 +173,11 @@ function App() {
 
       {license.state.status !== "unlocked" ? (
         <ActivationGate
+          mode={license.state.status}
           onActivate={license.activate}
           activating={license.activating}
           error={license.activateError}
+          onRetry={license.retry}
         />
       ) : hasVideo ? (
         <div style={{
