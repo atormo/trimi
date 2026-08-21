@@ -74,14 +74,37 @@ app/
 3. **No hardware HEVC/ProRes.** Don't imply otherwise anywhere in the UI — mp4/H.264 and gif are the ceiling for phase 1.
 4. **Large files in-browser.** Everything happens in memory/blob URLs; very large source files can hit browser memory limits. Not a phase-1 blocker, but don't assume it scales to arbitrary file sizes without testing.
 
-### 3.4 Phases
+### 3.4 Export engine, as built (W2)
+
+Lives at `app/src/lib/export-engine/` (named to avoid colliding with the pre-existing `lib/export.ts`, which still holds the size/estimate/format helpers shared with the UI). Loaded via dynamic `import()` from `Sidebar.tsx`, only once the Export tab is opened — mediabunny + the SoundTouch worklet are ~500KB, and the common edit-only session shouldn't pay for them.
+
+**Library: [mediabunny](https://mediabunny.dev), not mp4-muxer.** `mp4-muxer`, named in §3.1's original decision, is deprecated by its own author in favour of mediabunny (same author, same WebCodecs/hardware-encode approach, far less boilerplate — it wraps demux/decode/encode/mux behind one API).
+
+**Why the custom low-level pipeline instead of mediabunny's `Conversion.init()` convenience API:** `Conversion` directly supports trim, crop, and discarding the audio track, which covers three of the five edits declaratively. It does not support changing playback speed (no retiming knob), and speed needed custom timestamp math regardless — so rather than splitting the logic across `Conversion` for four edits and a separate custom path for the fifth, all five are done through one small hand-written pipeline (`mp4.ts`) using mediabunny's lower-level building blocks: `VideoSampleSink` to pull decoded frames, `CanvasSource`/`AudioBufferSource` to push encoded output. This also sidesteps needing any fixed frame-rate assumption — each frame's own real timestamp is individually rescaled by `1/speed`, so variable-frame-rate sources (trap in §4.4) are handled for free rather than needing special-casing.
+
+**How each edit is actually implemented:**
+- **Trim** — `VideoSampleSink.samples(trimStart, trimEnd)` bounds the frame iteration directly.
+- **Crop** — the normalized `CropRect` converted to pixels against `videoTrack.getDisplayWidth/Height()` (the *display* dimensions, i.e. already rotation-corrected — solves trap §4.4.1's phone-video-rotation problem for free, since `VideoSample.draw()` also auto-applies rotation). Reuses the existing `croppedSize()`/`scaledSize()` helpers from `lib/export.ts` so the encoded resolution is exactly what the Size UI already predicts.
+- **Color** — per §3.3 trap #1: `ctx.filter = colorFilterCss(edit.color)` before drawing each frame, then a second canvas pass replaying `temperatureOverlayStyle()`'s overlay (`globalCompositeOperation: 'overlay'` + the same hex colors/alpha). Same code as the live preview, not a reimplementation.
+- **Mute** — simply never adds an audio track/source to the `Output`.
+- **Speed** — video: each frame's timestamp/duration divided by `speed` as it's fed to `CanvasSource.add()`. Audio: the trimmed range is decoded into one `AudioBuffer` (`export-engine/audio.ts`), then either time-stretched with **real WSOLA pitch preservation** via `@soundtouchjs/audio-worklet`'s `processOffline()` (when `preservesPitch` is on — tempo changes, pitch doesn't, matching what `<video preservesPitch>` does natively in the live preview) or resampled via a plain `OfflineAudioContext` + `playbackRate` (varispeed — pitch shifts with speed) when it's off. This was flagged in the original consult as the item most likely to need a fallback (disable pitch preservation); it didn't — SoundTouch's offline API turned out to be a straightforward fit.
+
+**Bitrate:** computed from the exact same bits-per-pixel-at-30fps constants already in `estimateExportBytes()` (`lib/export.ts`), so the size the Export tab predicts is a real prediction, not a guess. One real bug worth flagging for future maintainers: `mediabunny`'s `Quality` constructor treats a **bare number** as a *qualitative* 0–1 quality level, not a literal bitrate — passing a real bitrate (e.g. `300000`) that way is silently read as an absurd out-of-range quality value and can make capability checks fail unpredictably. The fix is the options-object form: `new Quality({ bitrate })`.
+
+**Capability detection** (trap §3.3.2): `checkExportSupport()` feature-detects `VideoEncoder`/`OffscreenCanvas` plus a real `canEncodeVideo('avc', ...)` check, shown as an inline message rather than a silently broken export button.
+
+**GIF export (W3).** A second pipeline (`gif.ts`) sharing `frame.ts` (crop/scale math) and `color.ts` (the same color pass) with the mp4 path, but sampling frames rather than forwarding every one: for each of `duration × fps` output frames (fps by quality: 15/12/8, matching `estimateExportBytes()`), it asks mediabunny for the nearest source frame via `VideoSampleSink.getSample(timestamp)` at the corresponding source timestamp (`trimStart + outputTime × speed` — the same per-frame retiming principle as the mp4 path, so speed changes and variable source frame rates are handled without special-casing), draws+color-grades it, then quantizes and encodes it with **[gifenc](https://github.com/mattdesl/gifenc)**. Encoding uses a **fresh local color palette per frame** (`quantize()` + `applyPalette()` on every frame, not just the first) rather than one global palette reused for the whole clip — this is the pattern gifenc's own reference example uses, and it matters: a palette computed once from frame one looks visibly worse as soon as color grading or scene content shifts over the clip. `ctx.getImageData()` is called every frame, so the canvas is created with `willReadFrequently: true` to avoid the GPU-readback penalty Chrome otherwise warns about. GIF has no audio track, so muting is implicit. Verified end-to-end (real browser, real files): correct frame count and dimensions, mid-clip frame visually clean, cancel works mid-encode.
+
+No TypeScript types ship with gifenc — a small hand-written ambient declaration covering only the API surface used lives at `app/src/types/gifenc.d.ts`.
+
+### 3.5 Phases
 
 | # | Phase | Done when |
 |---|---|---|
 | W0 | Shell and preview | Drag and drop a file, it plays, layout matches the chosen design (floating toolbar over the timeline) — **done** |
 | W1 | Trim, speed, mute, crop, color (preview only) | All five controls are live and backed by real video/CSS APIs — no fake state — **done** |
-| W2 | Export engine | WebCodecs + muxer produces a real mp4 that reflects trim/speed/crop/color/mute exactly as previewed |
-| W3 | GIF export | Canvas frame sampling into an animated GIF, capped size/duration like the native plan describes |
+| W2 | Export engine | WebCodecs + muxer produces a real mp4 that reflects trim/speed/crop/color/mute exactly as previewed — **done** (`app/src/lib/export-engine/`; see §3.5) |
+| W3 | GIF export | Canvas frame sampling into an animated GIF, capped size/duration like the native plan describes — **done** (`export-engine/gif.ts`; see §3.4) |
 | W4 | Polish | Real audio waveform, loading/error states, responsive layout, keyboard shortcuts |
 | W5 | Ship | Deployed at trimi.app |
 

@@ -10,7 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@soundtouchjs/audio-worklet": "^2.1.1",
     "@tabler/icons-react": "^3.46.0",
+    "gifenc": "^1.0.3",
+    "mediabunny": "^1.55.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },

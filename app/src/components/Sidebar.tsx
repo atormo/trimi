@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { IconAspectRatio, IconCheck, IconCrop, IconFileExport, IconFileText, IconGauge, IconPalette, IconRotate, IconScissors, IconVideo, IconVolume } from "@tabler/icons-react";
 import type { VideoEditor } from "../hooks/useVideoEditor";
 import { CROP_PRESETS } from "../types";
@@ -17,6 +17,7 @@ import {
   type ExportQuality,
   type ExportScale,
 } from "../lib/export";
+import type { ExportSupport } from "../lib/export-engine";
 
 function Section({ title, icon, action, children }: { title: string; icon?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -62,7 +63,7 @@ function OptionGrid<T extends string>({
 }: {
   value: T;
   onChange: (v: T) => void;
-  options: { value: T; label: string; hint?: string; disabled?: boolean }[];
+  options: { value: T; label: string; hint?: string; disabled?: boolean; disabledReason?: string }[];
   columns: number;
 }) {
   return (
@@ -75,7 +76,7 @@ function OptionGrid<T extends string>({
             type="button"
             disabled={option.disabled}
             aria-pressed={active}
-            title={option.disabled ? "Source is smaller than this size" : undefined}
+            title={option.disabled ? (option.disabledReason ?? "Source is smaller than this size") : undefined}
             onClick={() => onChange(option.value)}
             style={{
               padding: option.hint ? "8px 4px 7px" : "9px 4px",
@@ -117,10 +118,75 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   const [format, setFormat] = useState<ExportFormat>("mp4");
   const [scale, setScale] = useState<ExportScale>("original");
   const [quality, setQuality] = useState<ExportQuality>("balanced");
+  const [exportSupport, setExportSupport] = useState<ExportSupport | null>(null);
+  const [exportPhase, setExportPhase] = useState<"idle" | "running" | "error">("idle");
+  const [exportProgress, setExportProgress] = useState(0);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const exportAbortRef = useRef<AbortController | null>(null);
+  // mediabunny + the SoundTouch worklet are ~500KB — loaded on demand, only once the Export tab
+  // is actually opened, so the common edit-only session never pays for them.
+  const exportEngineRef = useRef<Promise<typeof import("../lib/export-engine")> | null>(null);
+  const loadExportEngine = () => {
+    exportEngineRef.current ??= import("../lib/export-engine");
+    return exportEngineRef.current;
+  };
 
   useEffect(() => {
     if (file && !filename) setFilename(file.name.replace(/\.[^.]+$/, "") + "-trimi");
   }, [file, filename]);
+
+  useEffect(() => {
+    if (tab !== "export" || exportSupport) return;
+    let cancelled = false;
+    loadExportEngine()
+      .then((mod) => mod.checkExportSupport())
+      .then((support) => {
+        if (!cancelled) setExportSupport(support);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, exportSupport]);
+
+  const handleExport = async () => {
+    if (!file) return;
+    const mod = await loadExportEngine();
+    const controller = new AbortController();
+    exportAbortRef.current = controller;
+    setExportPhase("running");
+    setExportProgress(0);
+    setExportError(null);
+    try {
+      const exportFn = format === "gif" ? mod.exportGif : mod.exportMp4;
+      const { blob, filename: outName } = await exportFn({
+        file,
+        edit,
+        scale,
+        quality,
+        filename: filename || "trimi-export",
+        onProgress: setExportProgress,
+        signal: controller.signal,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = outName;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 4000);
+      setExportPhase("idle");
+    } catch (err) {
+      if (err instanceof mod.ExportCanceledError) {
+        setExportPhase("idle");
+      } else {
+        setExportError(err instanceof Error ? err.message : "Export failed — try again.");
+        setExportPhase("error");
+      }
+    } finally {
+      exportAbortRef.current = null;
+    }
+  };
+
+  const handleCancelExport = () => exportAbortRef.current?.abort();
 
   const canCut = edit.trimStart > trimView.start + 0.05 || edit.trimEnd < trimView.end - 0.05;
   const isTrimmed = trimView.start > 0.01 || (trimView.end > 0 && trimView.end < duration - 0.01);
@@ -385,10 +451,48 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
               </div>
             )}
 
-            <button disabled title="Export is coming next" style={{ ...primaryBtn, background: "var(--bg-chip)", color: "var(--text-3)", cursor: "not-allowed" }}>
-              <IconFileExport size={14} stroke={2} />
-              Export
-            </button>
+            {exportSupport && !exportSupport.supported && (
+              <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.45 }}>
+                {exportSupport.reason}
+              </div>
+            )}
+            {exportPhase === "error" && exportError && (
+              <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.45 }}>{exportError}</div>
+            )}
+
+            {exportPhase === "running" ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ position: "relative", height: 6, borderRadius: 3, background: "var(--bg-chip)", overflow: "hidden" }}>
+                  <div style={{
+                    position: "absolute", top: 0, bottom: 0, left: 0,
+                    width: `${Math.round(exportProgress * 100)}%`,
+                    background: "var(--tool-color)",
+                    transition: "width .15s ease",
+                  }} />
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button disabled style={{ ...primaryBtn, flex: 1, opacity: 0.6, cursor: "default" }}>
+                    Exporting… {Math.round(exportProgress * 100)}%
+                  </button>
+                  <button onClick={handleCancelExport} style={{ ...secondaryBtn, flex: 1, background: "var(--danger-solid)", color: "#ffffff" }}>
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={handleExport}
+                disabled={!file || !exportSupport?.supported}
+                style={{
+                  ...primaryBtn,
+                  opacity: !file || !exportSupport?.supported ? 0.4 : 1,
+                  cursor: !file || !exportSupport?.supported ? "not-allowed" : "pointer",
+                }}
+              >
+                <IconFileExport size={14} stroke={2} />
+                Export
+              </button>
+            )}
           </>
         )}
       </div>
