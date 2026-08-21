@@ -1,20 +1,24 @@
 import { useState } from "react";
-import { IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
+import { IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
 import { useVideoEditor } from "./hooks/useVideoEditor";
 import { useTheme } from "./hooks/useTheme";
+import { useLicense } from "./hooks/useLicense";
 import { DropZone } from "./components/DropZone";
 import { VideoStage } from "./components/VideoStage";
 import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
+import { ActivationGate } from "./components/ActivationGate";
 
 function App() {
   const editor = useVideoEditor();
   const { theme, toggle } = useTheme();
+  const license = useLicense();
   const hasVideo = Boolean(editor.videoUrl);
   const [newVideoOpen, setNewVideoOpen] = useState(false);
   const [newVideoMotion, setNewVideoMotion] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   const logo = (
     <img
@@ -110,18 +114,70 @@ function App() {
             {theme === "dark" ? <IconSun size={22} stroke={1.9} /> : <IconMoon size={22} stroke={1.9} />}
           </button>
           <div
-            title="Account"
-            style={{
-              width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center",
-              color: "var(--text-2)",
+            style={{ position: "relative" }}
+            onBlur={(event) => {
+              if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false);
             }}
           >
-            <IconUserCircle size={24} stroke={1.75} />
+            <button
+              type="button"
+              title="Account"
+              aria-label="Account"
+              aria-expanded={accountOpen}
+              disabled={license.state.status !== "unlocked"}
+              onClick={() => setAccountOpen((open) => !open)}
+              style={{
+                width: 30, height: 30, padding: 0, border: "none", background: "transparent",
+                color: "var(--text-2)", display: "flex", alignItems: "center", justifyContent: "center",
+                cursor: license.state.status === "unlocked" ? "pointer" : "default",
+              }}
+            >
+              <IconUserCircle size={24} stroke={1.75} />
+            </button>
+            {accountOpen && license.state.status === "unlocked" && (
+              <div style={{
+                position: "absolute", top: 38, right: 0, zIndex: 3, width: 220,
+                borderRadius: "var(--radius-md)", background: "var(--bg-panel-solid)",
+                boxShadow: "var(--island-shadow)", padding: 12,
+                display: "flex", flexDirection: "column", gap: 10,
+              }}>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>Licensed</div>
+                  <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                    Key ending {license.state.key.slice(-4)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={license.unlinking}
+                  onClick={() => {
+                    setAccountOpen(false);
+                    license.unlink();
+                  }}
+                  style={{
+                    height: 32, borderRadius: "var(--radius-sm)", border: "none",
+                    background: "var(--bg-chip)", color: "var(--text-2)",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    fontSize: 12, fontWeight: 500, cursor: license.unlinking ? "not-allowed" : "pointer",
+                    opacity: license.unlinking ? 0.6 : 1,
+                  }}
+                >
+                  <IconLogout size={13} stroke={2} />
+                  {license.unlinking ? "Unlinking…" : "Unlink this device"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {hasVideo ? (
+      {license.state.status !== "unlocked" ? (
+        <ActivationGate
+          onActivate={license.activate}
+          activating={license.activating}
+          error={license.activateError}
+        />
+      ) : hasVideo ? (
         <div style={{
           flex: 1,
           minHeight: 0,

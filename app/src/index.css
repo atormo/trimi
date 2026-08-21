@@ -90,6 +90,13 @@ button {
   font-family: inherit;
 }
 
+@keyframes trimi-spin {
+  to { transform: rotate(360deg); }
+}
+.trimi-spin {
+  animation: trimi-spin 0.8s linear infinite;
+}
+
 .upload-icon-feedback {
   transform: translateY(0) scale(1);
   transform-origin: center;
