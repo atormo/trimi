@@ -34,13 +34,8 @@ export function ActivationGate({
         <IconKey size={22} stroke={1.8} color="var(--text-1)" aria-hidden="true" />
       </div>
 
-      <div style={{ textAlign: "center", maxWidth: 340 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>
-          Unlock Trimi forever with your key
-        </div>
-        <div style={{ fontSize: 12.5, color: "var(--text-3)", marginTop: 4, lineHeight: 1.4 }}>
-          Want to use Trimi on another device? Unlink your key here, then activate it there.
-        </div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>
+        Unlock Trimi forever with your key
       </div>
 
       <form
