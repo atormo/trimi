@@ -34,13 +34,8 @@ export function ActivationGate({
         <IconKey size={22} stroke={1.8} color="var(--text-1)" aria-hidden="true" />
       </div>
 
-      <div style={{ textAlign: "center", maxWidth: 340 }}>
-        <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>
-          trimi is a one-time €15 purchase
-        </div>
-        <div style={{ fontSize: 13, color: "var(--text-3)", marginTop: 4, lineHeight: 1.5 }}>
-          Paste the license key from your purchase email to unlock the editor on this browser.
-        </div>
+      <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>
+        Trimi is a one-time €15 purchase
       </div>
 
       <form
@@ -88,19 +83,14 @@ export function ActivationGate({
         </button>
       </form>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "center" }}>
-        <a
-          href="https://trimi.app"
-          target="_blank"
-          rel="noreferrer"
-          style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
-        >
-          Don't have a code? Buy trimi — €15
-        </a>
-        <span style={{ fontSize: 11.5, color: "var(--text-3)", textAlign: "center", maxWidth: 320, lineHeight: 1.4 }}>
-          Already activated on another device? Check your purchase email from Polar for a link to manage and free up your license.
-        </span>
-      </div>
+      <a
+        href="https://trimi.app"
+        target="_blank"
+        rel="noreferrer"
+        style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
+      >
+        Buy Trimi — €15
+      </a>
     </div>
   );
 }
