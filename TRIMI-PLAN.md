@@ -241,99 +241,92 @@ N0 to N6 produce something usable. N7 and N8 are what turn it into a product, an
 
 ## 5. Launching phase 1: licensing, payments & hosting
 
-trimi is a one-time €20 purchase, lifetime access, sold at trimi.app. The paid product is served at editor.trimi.app — this repo. No accounts, no login, no user database — just one small per-order record used to enforce a single active device (§5.2). This section is the plan for that; it was drafted with input from a dedicated architecture consult (Opus) and adapted to self-hosting on the founder's own server via Coolify instead of a managed edge platform, then revised from a fully-offline unlimited-device scheme to the single-seat model after weighing the sharing risk of the former.
+trimi is a one-time **€15** purchase, lifetime access, sold at trimi.app. The paid product is served at editor.trimi.app — this repo. No accounts, no login, no database of our own at all — licensing runs entirely on **Polar** (Merchant of Record: checkout, payment, EU VAT/OSS tax, and license-key issuance/activation-tracking, all handled by Polar rather than built by us). This section was drafted with input from a dedicated architecture consult (Opus), adapted to self-hosting on the founder's own server via Coolify, then revised twice: first from a fully-offline unlimited-device scheme to a single-seat model (after weighing the sharing risk of the former), and again from a custom Ed25519-signed-code scheme to Polar's built-in License Keys feature (which turned out to implement the exact same single-seat model natively, for less code and less to maintain).
 
 ### 5.1 Scaling: why this doesn't need to scale in the usual sense
 
 Every edit and export runs on the buyer's own machine, in their own browser — the source file never leaves it (per §3.1). That means there is no shared server-side resource for concurrent users to contend over:
 
 - **editor.trimi.app** is a directory of static files. It has no server-side code and no secrets at all (see §5.2). Ten users and ten thousand differ only in bandwidth.
-- **trimi.app**'s backend runs a handful of tiny handlers (mint a code, receive the Stripe webhook, bind/unbind a device seat, look up a lost code) against a single-field record per order — each purchase triggers each one a handful of times, ever. This is not "scales fine," it's "barely exists."
-- **Continued use has zero server dependency.** Once a browser is bound, every later visit — including export — is a local signature check, no network call.
+- **trimi.app** is, for the MVP, *also* just static files plus a Polar-hosted checkout embed (§5.3) — Polar's infrastructure absorbs checkout, payment, and license-key traffic, not ours.
+- **License activation/validation is a direct browser → Polar API call.** No server of ours sits in that path at all, so there is nothing of ours to scale for it, ever.
 
 The real constraints are per-user, not concurrency: a very large source file can exhaust one tab's memory regardless of how many other people are using trimi that minute (§3.3 trap 4), and WebCodecs support varies by browser (§3.3 trap 2). Neither has anything to do with traffic volume.
 
-### 5.2 Licensing: a signed activation code, bound to one active device at a time
+### 5.2 Licensing: Polar License Keys, single-seat
 
-**There is no login and no user database.** This is the key thing to understand about how it works, because "an account" and "a code that unlocks a lock screen" (both raised as options) sound similar but aren't — we're doing the second one, and it's worth being explicit about why. There is exactly one small piece of server-side state per purchase — see §5.2.2 — and nothing resembling a users table.
+**There is no login and no database of ours.** Polar's License Keys benefit already implements exactly the model designed here — one active device at a time, self-service move to a new one — so trimi doesn't need its own signing scheme, its own seat-tracking table, or any backend to check licenses at all.
+
+**Polar dashboard configuration** (License Keys benefit on the €15 product):
+
+| Setting | Value | Why |
+|---|---|---|
+| Key prefix | `TRM` | Cosmetic — keys read as `TRM-XXXX-...` |
+| Expires | Off | Lifetime purchase, never expires |
+| Limit Activations | **On, `1`** | Caps concurrent **devices** at one — this is the actual seat lock. Each "activation" is one browser/machine. |
+| Enable user to deactivate instances via Polar | **On** | Gives buyers a *second*, Polar-hosted way to free their own seat if they lose access to the old device before deactivating from trimi itself — a free support-load reducer, not required for our own flow to work. |
+| Limit Usage | **Off** | This is a *separate* counter (total `validate` calls), unrelated to device count. Leaving it uncapped means checking the license on every app boot never runs out. Confusing it with Limit Activations was the mistake to avoid — Usage ≠ Activations. |
 
 **How it works, end to end:**
 
-1. Buyer pays €20 once via Stripe on trimi.app.
-2. A small server-side function (running on the founder's own server via Coolify, not a third-party platform) mints an **activation code** — a short string, cryptographically signed with a private key only that server knows.
-3. The buyer gets an **activation link** (`https://editor.trimi.app/#k=<code>`) on the Stripe success page and by email. Clicking it opens the editor.
-4. The editor checks the code's signature using a **public key baked into the app itself** (public keys are safe to ship — that's the point of signing vs. a plain password), then asks the same small server whether this purchase's one "seat" is free. If it is, the seat is bound to this browser and the editor unlocks. If it's already bound to a different browser, the buyer sees *"This code is active on another device — unlink it there first"* instead of unlocking.
-5. Once bound, the editor remembers the code in that browser's `localStorage` and doesn't re-check the seat on every visit — only the initial activation (and the unlink action, §5.2.1) talk to the server. Normal use, including export, has no network dependency at all.
+1. Buyer pays €15 once via a Polar Checkout Link embedded on trimi.app (§5.3) — Polar handles the card, the receipt, and EU VAT/OSS automatically.
+2. Polar **automatically emails the buyer their license key** the moment payment completes. No webhook, no minting code, no email-sending integration of our own required.
+3. The buyer pastes the key into editor.trimi.app's activation gate. The editor calls Polar's public **`/v1/customer-portal/license-keys/activate`** endpoint directly from the browser with `{ key, organization_id, label }` — `organization_id` is a public identifier (safe to bake into the client bundle, like a Stripe publishable key), so **this requires no backend of ours at all**. Polar creates an "activation instance" for this browser and returns an `activation_id`.
+4. The editor stores `{ key, activation_id }` in `localStorage` and calls **`/v1/customer-portal/license-keys/validate`** (with that `activation_id`, no `increment_usage`) once per app boot to confirm the license is still good — a direct network call to Polar, still nothing of ours in the path.
+5. If the seat is already taken by a different browser, `/activate` returns an error — the gate shows *"This code is already active on another device."*
 
-**Only one active browser/device per code, on purpose — and why that's actually the anti-sharing mechanism, not a limitation.** A code shared publicly can still be *pasted* anywhere, but only one browser can hold the seat at a time — the moment a second person activates it, the first person's browser is no longer the bound one next time it needs to re-bind (e.g. after clearing site data). Two people trying to use one code becomes an annoying tug-of-war, not a free multiplier, without needing to detect or police anything. Legitimate single-owner use (one person, one browser at a time) is completely unaffected.
+**Moving to a new browser or computer.** The "user" panel (the currently-inert `IconUserCircle` in `App.tsx`) shows the license status plus **Unlink this device**, which calls Polar's public `/v1/customer-portal/license-keys/deactivate` with the stored `activation_id` — releasing the seat immediately so the new browser's `/activate` call succeeds.
 
-**Moving to a new browser or computer — the "user" panel.** The existing (currently inert) account icon in the header (`App.tsx`, the `IconUserCircle` affordance) becomes this purchase's status panel — not a login, just a local view of "your code" plus one button: **Unlink this device**. Clicking it releases the seat server-side and clears this browser's local state, so the code can be activated somewhere else immediately, forever, with no limit on how many times you move it — you just can't be active in two places simultaneously.
-
-**The edge case: you lose access to the old device before unlinking** (it broke, was wiped, etc.). This reuses the same "lost code" recovery flow already planned for a forgotten code (§5.2.2): the founder (or an automated email-confirmation step, if that's added later) verifies the buyer via the email Stripe has on file and force-clears the seat, exactly like resetting a password reuses an email-verification flow elsewhere. No new mechanism, same recovery path serving two purposes.
-
-**Why not a real account (email + password, or magic link)?** That would need a server-side database of who-owns-what and a session/login system to check on every visit — precisely the "big database, complex stuff" ruled out from the start. The single-seat signed-code approach gets a meaningfully anti-shareable result without either.
+**Lost the old device before deactivating?** Because `enable_customer_admin` is on, the buyer can go to Polar's own hosted customer portal (found via their purchase receipt email) and deactivate the stuck instance themselves — no support request to the founder needed for this at all.
 
 #### 5.2.1 The gate, concretely
 
-- App loads → checks for `#k=...` in the URL (fresh activation) or a previously bound code in `localStorage`.
-- Bound + this browser holds the seat → the editor renders exactly as it does today, no network calls.
-- Locked → instead of the drop zone, show: *"Trimi is a one-time €20 purchase."* One input that accepts either the full activation link or the bare code (paste either, it figures out which), a primary **Activate** button, a secondary **Buy trimi — €20** link to trimi.app, and "Lost your code? / Used on another device?" linking to a recovery page on trimi.app.
-- This is a UX + light anti-sharing gate, not DRM. Someone determined enough could still strip the check from the downloaded JS bundle — true of any client-side check — but that's not the threat model here; the single-seat binding is aimed at casual sharing, not a determined attacker, and that's a deliberate, proportionate line for a €20 utility.
+- App loads → checks `localStorage` for a previously activated `{ key, activation_id }` and calls `/validate`.
+- Valid → the editor renders exactly as it does today.
+- Locked → instead of the drop zone: *"trimi is a one-time €15 purchase."* One input for the license key, a primary **Activate** button (calls `/activate`), a secondary **Buy trimi — €15** link to trimi.app, and a note that the key also works in the buyer's Polar purchase portal if they need to switch devices without access to the old one.
+- This is a UX + light anti-sharing gate (one seat, so casual sharing becomes a tug-of-war between two people), not DRM — same proportionate stance as before, just enforced by Polar's activation limit instead of our own signature check.
 
-#### 5.2.2 What the code actually contains, and the one piece of state that does exist
+#### 5.2.2 What we store, and what we don't
 
-The activation code is `payload + signature`, base64-encoded. The payload is small: a format/version byte, an order reference, and the date issued. The order reference is **derived from the Stripe checkout session id** (a one-way hash of it), not a random id — so the code itself never needs to be stored anywhere; Stripe already has the record of who paid (session id, email, receipt).
+**Nothing.** No database, no SQLite file, no signing key to generate or back up. The license key itself, the activation record, and the one-seat enforcement all live in Polar. The only thing trimi's own code holds is the public `organization_id` (baked into the build, not secret) and, per-browser, whatever Polar's `/activate` call returned into that browser's `localStorage`.
 
-The **one thing that is stored**, server-side, per purchase: which device currently holds the seat — one row per order, one nullable field (`orderRef → boundDeviceId`), where `boundDeviceId` is a random token the browser generates on first activation and keeps alongside its copy of the code. That's the entire server-side data model. No user table, no auth, no sessions — just "is this seat free, and if so, whose is it now."
+**Refunds/chargebacks:** revoke or delete the license key from the Polar dashboard — Polar's `/validate` call then correctly starts failing for that key. No custom revocation logic needed.
 
-- "I lost my code": find the buyer's email in Stripe, recompute the same code from their session id, resend it — same code every time, no lookup table needed for this part.
-- "My code says it's active elsewhere and I don't have access to that device": the same recovery contact clears `boundDeviceId` back to null.
+### 5.3 Hosting & commerce: mostly static, Polar does the rest
 
-**Refunds/chargebacks:** no separate revocation mechanism at launch. Clearing `boundDeviceId` (or, if ever needed, a small "these order refs are revoked" list checked only at activation, failing open on any server error) is enough — a refunded buyer keeping access to a client-side video trimmer costs nothing, so there's no urgency here beyond what the seat binding already provides.
-
-**One irreversible artifact:** the private signing key. It's generated once, offline, and never leaves the founder's own machine/server. Losing it means all future codes need a new key pair (old codes still verify against the old public key, so nothing already sold breaks — the app can ship checking against a small list of valid public keys over time). Back it up somewhere durable (password manager), same as any other secret that can't be regenerated.
-
-### 5.3 Hosting: self-hosted via Coolify, two separate deployments
-
-The founder runs their own server with Coolify already, so that's the platform — no Cloudflare/Vercel needed. The important architectural point carries over regardless of platform: **editor.trimi.app and trimi.app are two separate deployments, not one app with two routes**, so that:
-
-- The editor has **no backend and no secrets at all** — it's a static build (`app/dist`) served as its own Coolify app/static site. Nothing in it can leak the signing key, because it was never given the signing key.
-- If trimi.app's small backend service has a bad deploy, a crash, or needs a restart, **editor.trimi.app keeps working for every customer who already has a code** — it doesn't depend on that service being up at all, only on it having been up once, in the past, to mint their code. This is what makes "the app shouldn't go down" true architecturally rather than by luck.
-- Deploys are independent: a landing-page copy fix doesn't touch the editor; an export bugfix doesn't touch the page that takes payments.
-
-Concretely, two Coolify apps from the same repo:
+The founder runs their own server with Coolify already, so that's the platform — no Cloudflare/Vercel needed. With Polar handling checkout, tax, key delivery, and license enforcement, **the MVP needs no backend at all on either subdomain** — both are static sites:
 
 | Coolify app | Domain | Repo path | What it runs |
 |---|---|---|---|
-| `trimi-editor` | editor.trimi.app | `app/` | Static build output (`npm run build` → `app/dist`), served as static files. No server process needed beyond a static file server. |
-| `trimi-site` | trimi.app (+ www) | `site/` | The landing page (static) plus a small Node service for: mint a code after Stripe confirms payment, receive Stripe's webhook, bind/unbind a purchase's device seat, and look up a lost code by email. Backed by a single SQLite file (one row per order: order ref → bound device id) — no separate database service to run. This is the only place secrets live (Stripe key, the signing private key, an email-sending key) and the only place the SQLite file lives. |
+| `trimi-editor` | editor.trimi.app | `app/` | Static build output (`npm run build` → `app/dist`) via the existing `Dockerfile` (nginx). No server code, no secrets. |
+| `trimi-site` | trimi.app (+ www) | `site/` | A static landing page with a **Polar Checkout Link** embedded (`data-polar-checkout` `<a>` tag + Polar's embed script — see [Polar's checkout embed docs](https://polar.sh/docs/features/checkout/embed)). No server code, no secrets, no webhook. |
 
-Since it's self-hosted, note the one real trade-off versus a managed edge platform: uptime for `trimi-site` (and therefore new sales and code recovery) is now the founder's own server's uptime, not a CDN's. That's an acceptable trade for using infrastructure already owned and paid for — just worth Coolify's restart policies / health checks being turned on for `trimi-site`, and DNS for both subdomains pointed at the server (Coolify's built-in proxy handles TLS certificates automatically once that's done).
+Kept as **two separate Coolify deployments** rather than one, still: independent deploys (a landing-page copy fix shouldn't redeploy the editor, and vice versa), and if one ever needs a backend later (see the optional polish below), that shouldn't force the other to have one too.
+
+**Optional post-launch polish, not needed to ship:** right now, after paying, the buyer gets their key by email and has to paste it in manually. A nicer flow — Polar's checkout redirect carrying the order back to a tiny success-page function (needs one secret: a Polar API access token) that looks up the issued key and redirects straight to `editor.trimi.app/#k=...`, skipping the email step — is a real UX improvement but is genuinely optional, since the baseline (check your email) already works. Don't build it before launch.
 
 ### 5.4 Repo structure: one GitHub repo
 
-There's no git repository at all yet under `/Users/tormius/dev/trimi`. Plan: one **private** GitHub repo (private because `site/` will contain the payment backend — no reason to make that code public even though the editor bundle itself is inherently public once deployed), holding everything:
+There's no git repository at all yet under `/Users/tormius/dev/trimi`. Plan: one **private** GitHub repo, holding everything:
 
 ```
 trimi/
-  package.json               npm workspaces: app, site, packages/license
   .gitignore
   TRIMI-PLAN.md
   design/
-  packages/license/          the ONE module that signs codes (used by site/) and verifies them (used by app/) — shared, so the two sides can never drift apart into "signed with one scheme, checked with another"
   app/                       this editor, unchanged, deployed as trimi-editor
-  site/                      landing page + the payment/licensing backend (+ its SQLite file), deployed as trimi-site
+  site/                      static landing page + Polar checkout embed, deployed as trimi-site
 ```
 
-`packages/license` is the one piece of shared code between the two deployments, and it's small and stable (encode/decode/sign/verify) — worth keeping in the same repo specifically so it can't quietly diverge between the app that mints codes and the app that checks them.
+No `packages/license` and no npm workspaces needed — there is no shared signing/verification code between the two sides any more, since Polar is the sole source of truth for both. `site/` can be plain static HTML; it doesn't need to be a Node project at all unless the optional polish in §5.3 gets built later.
 
 ### 5.5 Sequenced launch checklist
 
 1. **Repo + editor deployed, ungated** — `git init`, push to GitHub, stand up `trimi-editor` on Coolify pointed at `app/`, confirm editor.trimi.app loads and plays a video from the real deployment. Do this first; it's cheap and everything else builds on having a working deploy target.
-2. **Export engine (the actual remaining product work)** — mediabunny-based mp4 export covering trim/crop/mute/color (via the `ctx.filter` reuse in §3.3) and speed (custom — video timestamp scaling plus an `OfflineAudioContext` render for the audio, real time-stretching only if `preservesPitch` needs to stay true at non-1x speeds). Verify a preview frame and an exported frame match. This is the one item that's genuinely a project rather than a task — everything else in this section is comparatively quick.
-3. **Licensing plumbing** — generate the signing key pair (offline, back it up), build `packages/license`, add the SQLite-backed seat store and its endpoints (activate/bind, unlink, lost-code lookup) to `site/`, add the activation gate + the user panel's "unlink this device" action to the editor.
-4. **Commerce + landing** — Stripe product + Payment Link (no custom checkout code needed) for the €20 one-time charge, webhook wired to mint + email the code, a `/thanks` success page and a `/recover` page (lost code, or "used on another device" self-service help), VAT/Stripe Tax handling for selling a digital product to the EU, a plain refund policy.
-5. **Pre-launch gate** — buy the product for real, with a real card, in live mode; follow the activation link; confirm it unlocks and binds this browser; export a real file; paste the same code into a second browser and confirm it's correctly refused ("active on another device"); use the unlink action from the first browser and confirm the second can now activate; confirm normal use (including export) works with the network off once already bound, since only activation/unlink should ever touch the server; then refund the test purchase and confirm nothing breaks. Also: the current layout is a fixed desktop grid, so add an honest "trimi needs a desktop browser" screen for mobile visitors rather than a broken layout.
+2. **Export engine (the actual remaining product work)** — mediabunny-based mp4 export covering trim/crop/mute/color and speed. Verify a preview frame and an exported frame match. This is the one item that's genuinely a project rather than a task.
+3. **Licensing plumbing** — create the €15 product + License Keys benefit in Polar with the config in §5.2, then in the editor: an `activation_id`-aware `useLicense` hook wrapping the three `/customer-portal/license-keys/*` calls, the `ActivationGate` component, and the user panel's "Unlink this device" action. No backend work at all.
+4. **Commerce + landing** — trimi.app as a static page with the Polar Checkout Link embedded, copy covering the five edits and "your video never leaves your browser," a plain refund policy page (Polar's own terms cover the payment side; check what Polar requires you to disclose).
+5. **Pre-launch gate** — buy the product for real, with a real card, in live mode; confirm the emailed key activates the editor; export a real file; paste the same key into a second browser and confirm it's correctly refused; use "Unlink this device" from the first browser and confirm the second can now activate; refund the test purchase via Polar and confirm the key stops validating. Also: the current layout is a fixed desktop grid, so add an honest "trimi needs a desktop browser" screen for mobile visitors rather than a broken layout.
 
-**Launch-blocking:** the export engine, the activation gate + seat binding + payment flow working end to end in live mode, the unlink action, VAT handling, the desktop-only mobile screen, some way to recover a lost/stuck code (even if it's just the founder doing the Stripe lookup and seat-clear by hand at first).
-**Not launch-blocking:** GIF export (if it's not ready, hide the toggle rather than ship a button that fails), a public revoked-order-refs list beyond the seat-clear on refund, raising the seat limit above one, audio waveform, keyboard shortcuts.
+**Launch-blocking:** the export engine, the Polar product/License Keys configuration, the activation gate + unlink action working end to end against live Polar, the desktop-only mobile screen.
+**Not launch-blocking:** GIF export is already done (§3.4) — nothing left here; the optional auto-redirect-after-checkout polish (§5.3); raising the seat limit above one; audio waveform, keyboard shortcuts.
