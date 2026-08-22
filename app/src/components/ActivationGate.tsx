@@ -135,7 +135,7 @@ export function ActivationGate({
       </form>
 
       <a
-        href="https://trimi.app"
+        href="https://polar.sh/checkout/polar_c_iX6OeQw78TX3oxQA7cye3PBCxfcxaiKD28us84ZAEMi"
         target="_blank"
         rel="noreferrer"
         style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
