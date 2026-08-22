@@ -130,8 +130,18 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
       paintTemperatureOverlay(ctx, outSize.width, outSize.height, edit.color.temperature);
       sample.close();
 
-      const timestamp = (sampleTimestamp - trimStart) / speed;
-      const duration = sampleDuration / speed;
+      // samples(trimStart, trimEnd) can hand back one leading sample whose own timestamp is
+      // earlier than trimStart (mediabunny anchors playback to the last keyframe-derived sample
+      // at or before the start), which would otherwise produce a negative timestamp here and
+      // make mediabunny's encoder throw. Clip it to the trim boundary instead, mirroring the
+      // same clamp already applied to audio in buildExportAudio().
+      let timestamp = (sampleTimestamp - trimStart) / speed;
+      let duration = sampleDuration / speed;
+      if (timestamp < 0) {
+        duration += timestamp;
+        timestamp = 0;
+      }
+      if (duration <= 0) continue;
       await videoSource.add(timestamp, duration);
 
       const frac = Math.min(1, Math.max(0, (sampleTimestamp - trimStart) / trimDuration));

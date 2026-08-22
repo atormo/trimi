@@ -19,6 +19,7 @@ function App() {
   const [newVideoOpen, setNewVideoOpen] = useState(false);
   const [newVideoMotion, setNewVideoMotion] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [unlinkHovered, setUnlinkHovered] = useState(false);
 
   const logo = (
     <img
@@ -154,12 +155,16 @@ function App() {
                     setAccountOpen(false);
                     license.unlink();
                   }}
+                  onMouseEnter={() => setUnlinkHovered(true)}
+                  onMouseLeave={() => setUnlinkHovered(false)}
                   style={{
                     height: 32, borderRadius: "var(--radius-sm)", border: "none",
-                    background: "var(--bg-chip)", color: "var(--text-2)",
+                    background: unlinkHovered && !license.unlinking ? "var(--danger-solid)" : "var(--bg-chip)",
+                    color: unlinkHovered && !license.unlinking ? "#ffffff" : "var(--text-2)",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     fontSize: 12, fontWeight: 500, cursor: license.unlinking ? "not-allowed" : "pointer",
                     opacity: license.unlinking ? 0.6 : 1,
+                    transition: "background 0.15s, color 0.15s",
                   }}
                 >
                   <IconLogout size={13} stroke={2} />
