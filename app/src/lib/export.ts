@@ -4,8 +4,42 @@ export type ExportFormat = "mp4" | "gif";
 export type ExportQuality = "high" | "balanced" | "small";
 export type ExportScale = "original" | "1080" | "720" | "480";
 
-export const GIF_MAX_WIDTH = 640;
 export const GIF_LONG_CLIP_SECONDS = 10;
+
+/** GIF quality changes temporal/color fidelity. Spatial resolution is controlled separately by
+ * the Size selector; in particular, "Original" must never silently shrink the source. */
+export const GIF_FPS_BY_QUALITY: Record<ExportQuality, number> = {
+  high: 20,
+  balanced: 12,
+  small: 8,
+};
+
+export const GIF_COLORS_BY_QUALITY: Record<ExportQuality, number> = {
+  high: 256,
+  balanced: 192,
+  small: 128,
+};
+
+export const MP4_AUDIO_BITRATE_BY_QUALITY: Record<ExportQuality, number> = {
+  high: 192_000,
+  balanced: 128_000,
+  small: 96_000,
+};
+
+/** Mirrors mediabunny's named H.264 quality levels used by mp4.ts:
+ * very-high (High), high (Balanced), and medium (Small). */
+const MP4_BITRATE_FACTOR_BY_QUALITY: Record<ExportQuality, number> = {
+  high: 4,
+  balanced: 2,
+  small: 1,
+};
+
+function estimateMp4VideoBitrate(size: SourceSize, quality: ExportQuality) {
+  const referencePixels = 1920 * 1080;
+  const referenceBitrate = 3_000_000;
+  const resolutionFactor = Math.pow((size.width * size.height) / referencePixels, 0.95);
+  return referenceBitrate * resolutionFactor * MP4_BITRATE_FACTOR_BY_QUALITY[quality];
+}
 
 export interface SourceSize {
   width: number;
@@ -24,15 +58,8 @@ export function croppedSize(source: SourceSize, crop: CropRect): SourceSize {
 }
 
 /** 1080p means 1080 lines: height for landscape, width for portrait. Never upscale. */
-export function scaledSize(source: SourceSize, scale: ExportScale, format: ExportFormat): SourceSize {
+export function scaledSize(source: SourceSize, scale: ExportScale, _format: ExportFormat): SourceSize {
   let { width, height } = source;
-  if (format === "gif") {
-    const maxWidth = scale === "480" ? 480 : GIF_MAX_WIDTH;
-    const factor = Math.min(1, maxWidth / width);
-    width *= factor;
-    height *= factor;
-    return { width: even(width), height: even(height) };
-  }
   if (scale !== "original") {
     const cap = Number(scale);
     const primary = width >= height ? height : width;
@@ -43,14 +70,13 @@ export function scaledSize(source: SourceSize, scale: ExportScale, format: Expor
   return { width: even(width), height: even(height) };
 }
 
-export function wouldUpscale(source: SourceSize, scale: ExportScale, format: ExportFormat) {
+/** A preset at or above the source's short edge would either upscale or produce the same pixels.
+ * Both are hidden: Original already represents that output honestly. */
+export function wouldNotReduce(source: SourceSize, scale: ExportScale, _format: ExportFormat) {
   if (scale === "original") return false;
-  if (format === "gif") {
-    return source.width < (scale === "480" ? 480 : GIF_MAX_WIDTH) - 1;
-  }
   const cap = Number(scale);
   const primary = source.width >= source.height ? source.height : source.width;
-  return primary < cap - 1;
+  return primary <= cap;
 }
 
 export function formatResolution(size: SourceSize) {
@@ -69,15 +95,13 @@ export function estimateExportBytes(options: {
   const pixels = size.width * size.height;
 
   if (format === "gif") {
-    const fps = quality === "high" ? 15 : quality === "balanced" ? 12 : 8;
+    const fps = GIF_FPS_BY_QUALITY[quality];
     const bytesPerPixel = quality === "high" ? 0.55 : quality === "balanced" ? 0.4 : 0.28;
     return pixels * fps * bytesPerPixel * seconds;
   }
 
-  const fps = 30;
-  const bitsPerPixel = quality === "high" ? 0.12 : quality === "balanced" ? 0.07 : 0.035;
-  const videoBits = pixels * fps * bitsPerPixel * seconds;
-  const audioBits = muted ? 0 : 96_000 * seconds;
+  const videoBits = estimateMp4VideoBitrate(size, quality) * seconds;
+  const audioBits = muted ? 0 : MP4_AUDIO_BITRATE_BY_QUALITY[quality] * seconds;
   return (videoBits + audioBits) / 8;
 }
 

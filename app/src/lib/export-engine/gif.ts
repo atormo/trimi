@@ -1,7 +1,7 @@
 import { ALL_FORMATS, BlobSource, Input, VideoSampleSink } from "mediabunny";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
 import type { EditState } from "../../types";
-import type { ExportQuality, ExportScale } from "../export";
+import { GIF_COLORS_BY_QUALITY, GIF_FPS_BY_QUALITY, type ExportQuality, type ExportScale } from "../export";
 import { colorFilterCss, paintTemperatureOverlay } from "./color";
 import { computeFramePlan } from "./frame";
 import { ExportCanceledError } from "./errors";
@@ -15,11 +15,6 @@ export interface ExportGifOptions {
   onProgress?: (fraction: number) => void;
   signal?: AbortSignal;
 }
-
-/** Kept identical to the fps assumption in estimateExportBytes() (lib/export.ts) so the size the
- * Export tab predicts matches what this actually produces. */
-const GIF_FPS: Record<ExportQuality, number> = { high: 15, balanced: 12, small: 8 };
-const GIF_MAX_COLORS: Record<ExportQuality, number> = { high: 256, balanced: 192, small: 128 };
 
 export async function exportGif({ file, edit, scale, quality, filename, onProgress, signal }: ExportGifOptions): Promise<{ blob: Blob; filename: string }> {
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
@@ -37,20 +32,23 @@ export async function exportGif({ file, edit, scale, quality, filename, onProgre
     // the GPU-backed canvas fast path here, which is a net win given the readback pattern.
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) throw new Error("Couldn't create a canvas for rendering frames.");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
-    const trimStart = edit.trimStart;
-    const trimEnd = Math.max(edit.trimEnd, trimStart + 0.001);
-    const speed = Math.max(0.01, edit.speed);
+    const trimStart = Number.isFinite(edit.trimStart) ? Math.max(0, edit.trimStart) : 0;
+    const trimEnd = Number.isFinite(edit.trimEnd) ? Math.max(edit.trimEnd, trimStart + 0.001) : trimStart + 0.001;
+    const speed = Number.isFinite(edit.speed) ? Math.max(0.01, edit.speed) : 1;
     const outDuration = (trimEnd - trimStart) / speed;
 
-    const fps = GIF_FPS[quality];
-    const maxColors = GIF_MAX_COLORS[quality];
+    const fps = GIF_FPS_BY_QUALITY[quality];
+    const maxColors = GIF_COLORS_BY_QUALITY[quality];
     const frameCount = Math.max(1, Math.round(outDuration * fps));
     const delayMs = Math.round(1000 / fps);
 
     const filter = colorFilterCss(edit.color);
     const sink = new VideoSampleSink(videoTrack);
     const gif = GIFEncoder();
+    let writtenFrames = 0;
 
     for (let i = 0; i < frameCount; i++) {
       if (signal?.aborted) throw new ExportCanceledError();
@@ -60,7 +58,10 @@ export async function exportGif({ file, edit, scale, quality, filename, onProgre
       const outTimestamp = i / fps;
       const sourceTimestamp = Math.min(trimEnd - 0.0001, trimStart + outTimestamp * speed);
       const sample = await sink.getSample(sourceTimestamp);
-      if (!sample) continue;
+      if (!sample) {
+        onProgress?.((i + 1) / frameCount);
+        continue;
+      }
 
       ctx.filter = filter;
       sample.draw(ctx, cropPx.left, cropPx.top, cropPx.width, cropPx.height, 0, 0, outSize.width, outSize.height);
@@ -79,8 +80,13 @@ export async function exportGif({ file, edit, scale, quality, filename, onProgre
         delay: delayMs,
         repeat: 0,
       });
+      writtenFrames += 1;
 
       onProgress?.((i + 1) / frameCount);
+    }
+
+    if (writtenFrames === 0) {
+      throw new Error("The selected range doesn't contain any exportable video frames.");
     }
 
     gif.finish();

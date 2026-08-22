@@ -85,7 +85,7 @@ export function ActivationGate({
         <IconKey size={22} stroke={1.8} color="var(--text-1)" aria-hidden="true" />
       </div>
 
-      <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>
+      <div style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)", textWrap: "balance", textAlign: "center" }}>
         Unlock Trimi forever with your key
       </div>
 
@@ -97,10 +97,14 @@ export function ActivationGate({
         style={{ display: "flex", flexDirection: "column", gap: 10, width: "100%", maxWidth: 340 }}
       >
         <input
+          id="license-key"
           type="text"
           value={key}
           onChange={(e) => setKey(e.target.value)}
           placeholder="TRM-XXXX-XXXX-XXXX"
+          aria-label="License key"
+          aria-describedby={error ? "license-key-error license-browser-note" : "license-browser-note"}
+          aria-invalid={Boolean(error)}
           autoFocus
           autoCapitalize="off"
           autoCorrect="off"
@@ -114,7 +118,7 @@ export function ActivationGate({
         />
 
         {error && (
-          <div style={{ fontSize: 12, color: "var(--danger)", textAlign: "center", lineHeight: 1.4 }}>
+          <div id="license-key-error" role="alert" style={{ fontSize: 12, color: "var(--danger)", textAlign: "center", lineHeight: 1.4 }}>
             {error}
           </div>
         )}
@@ -134,14 +138,22 @@ export function ActivationGate({
         </button>
       </form>
 
-      <a
-        href="https://polar.sh/checkout/polar_c_iX6OeQw78TX3oxQA7cye3PBCxfcxaiKD28us84ZAEMi"
-        target="_blank"
-        rel="noreferrer"
-        style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
-      >
-        Don't have a key? Buy Trimi for €15
-      </a>
+      <div style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", alignItems: "center", gap: 7, textAlign: "center" }}>
+        <a
+          href="https://polar.sh/checkout/polar_c_iX6OeQw78TX3oxQA7cye3PBCxfcxaiKD28us84ZAEMi"
+          target="_blank"
+          rel="noreferrer"
+          style={{ fontSize: 12.5, color: "var(--text-2)", fontWeight: 500 }}
+        >
+          Don't have a key? Buy Trimi for €15
+        </a>
+        <div
+          id="license-browser-note"
+          style={{ fontSize: 11.5, color: "var(--text-3)", lineHeight: 1.45, textWrap: "pretty" }}
+        >
+          Already licensed? Your activation is tied to one browser. To switch browsers or devices, choose Account → Unlink this device in the currently linked browser first.
+        </div>
+      </div>
     </div>
   );
 }

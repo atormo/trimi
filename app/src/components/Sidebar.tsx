@@ -5,6 +5,8 @@ import { CROP_PRESETS } from "../types";
 import { Checkbox, Slider, TextField, Toggle } from "./controls";
 import { formatFileSize, formatTime } from "../lib/format";
 import {
+  GIF_COLORS_BY_QUALITY,
+  GIF_FPS_BY_QUALITY,
   GIF_LONG_CLIP_SECONDS,
   QUALITY_OPTIONS,
   SCALE_OPTIONS,
@@ -12,7 +14,7 @@ import {
   estimateExportBytes,
   formatResolution,
   scaledSize,
-  wouldUpscale,
+  wouldNotReduce,
   type ExportFormat,
   type ExportQuality,
   type ExportScale,
@@ -51,6 +53,18 @@ const secondaryBtn: React.CSSProperties = {
 const resetLink: React.CSSProperties = {
   height: 40, margin: "-10px 0", padding: 0, border: "none", background: "transparent",
   fontSize: 11.5, color: "var(--text-3)", cursor: "pointer", textAlign: "center",
+};
+
+const MP4_QUALITY_HINTS: Record<ExportQuality, string> = {
+  high: "Max detail",
+  balanced: "Recommended",
+  small: "Compact",
+};
+
+const GIF_QUALITY_HINTS: Record<ExportQuality, string> = {
+  high: `${GIF_FPS_BY_QUALITY.high} fps`,
+  balanced: `${GIF_FPS_BY_QUALITY.balanced} fps`,
+  small: `${GIF_FPS_BY_QUALITY.small} fps`,
 };
 
 type Tab = "edit" | "export";
@@ -208,7 +222,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   useEffect(() => {
     if (!sourceSize) return;
     const next = croppedSize(sourceSize, edit.crop);
-    if (wouldUpscale(next, scale, format) || (format === "gif" && (scale === "1080" || scale === "720"))) {
+    if (wouldNotReduce(next, scale, format) || (format === "gif" && (scale === "1080" || scale === "720"))) {
       setScale("original");
     }
   }, [edit.crop, format, scale, sourceSize]);
@@ -404,7 +418,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                 options={SCALE_OPTIONS
                   .filter((option) => {
                     if (format === "gif" && option.value !== "original" && option.value !== "480") return false;
-                    if (cropped && wouldUpscale(cropped, option.value, format)) return false;
+                    if (cropped && wouldNotReduce(cropped, option.value, format)) return false;
                     return true;
                   })
                   .map((option) => {
@@ -423,7 +437,10 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                 value={quality}
                 onChange={setQuality}
                 columns={3}
-                options={QUALITY_OPTIONS}
+                options={QUALITY_OPTIONS.map((option) => ({
+                  ...option,
+                  hint: format === "mp4" ? MP4_QUALITY_HINTS[option.value] : GIF_QUALITY_HINTS[option.value],
+                }))}
               />
             </Section>
 
@@ -440,8 +457,8 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
               </div>
               <div style={{ fontSize: 11.5, color: "var(--text-3)", fontVariantNumeric: "tabular-nums" }}>
                 {formatTime(exportDuration)}
-                {" · "}~{formatFileSize(exportEstimate)}
-                {" · "}{format === "mp4" ? "H.264" : "GIF"}
+                {" · "}{format === "gif" ? "up to ~" : "~"}{formatFileSize(exportEstimate)}
+                {" · "}{format === "mp4" ? "H.264" : `GIF · ${GIF_COLORS_BY_QUALITY[quality]} colors`}
                 {" · "}{format === "gif" || edit.isMuted ? "No audio" : "Audio"}
               </div>
             </div>
@@ -452,26 +469,35 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
             )}
 
             {exportSupport && !exportSupport.supported && (
-              <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.45 }}>
+              <div role="alert" style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.45 }}>
                 {exportSupport.reason}
               </div>
             )}
             {exportPhase === "error" && exportError && (
-              <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.45 }}>{exportError}</div>
+              <div role="alert" style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.45 }}>{exportError}</div>
             )}
 
             {exportPhase === "running" ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                <div style={{ position: "relative", height: 6, borderRadius: 3, background: "var(--bg-chip)", overflow: "hidden" }}>
+              <div aria-busy="true" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div
+                  role="progressbar"
+                  aria-label="Export progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={Math.round(exportProgress * 100)}
+                  style={{ position: "relative", height: 6, borderRadius: 3, background: "var(--bg-chip)", overflow: "hidden" }}
+                >
                   <div style={{
                     position: "absolute", top: 0, bottom: 0, left: 0,
-                    width: `${Math.round(exportProgress * 100)}%`,
+                    width: "100%",
                     background: "var(--tool-color)",
-                    transition: "width .15s ease",
+                    transform: `scaleX(${Math.min(1, Math.max(0, exportProgress))})`,
+                    transformOrigin: "left center",
+                    transition: "transform .15s ease-out",
                   }} />
                 </div>
                 <div style={{ display: "flex", gap: 8 }}>
-                  <button disabled style={{ ...primaryBtn, flex: 1, opacity: 0.6, cursor: "default" }}>
+                  <button disabled aria-live="polite" style={{ ...primaryBtn, flex: 1, opacity: 0.6, cursor: "default", fontVariantNumeric: "tabular-nums" }}>
                     Exporting… {Math.round(exportProgress * 100)}%
                   </button>
                   <button onClick={handleCancelExport} style={{ ...secondaryBtn, flex: 1, background: "var(--danger-solid)", color: "#ffffff" }}>

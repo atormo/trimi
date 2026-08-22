@@ -2,6 +2,13 @@ import type { CSSProperties } from "react";
 import type { ColorAdjustments } from "../types";
 
 export function colorFilterCss(color: Pick<ColorAdjustments, "exposure" | "contrast" | "saturation">) {
+  if (
+    Math.abs(color.exposure) < 0.0001
+    && Math.abs(color.contrast - 1) < 0.0001
+    && Math.abs(color.saturation - 1) < 0.0001
+  ) {
+    return "none";
+  }
   const brightness = 1 + color.exposure * 0.3;
   return `brightness(${brightness}) contrast(${color.contrast}) saturate(${color.saturation})`;
 }

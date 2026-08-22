@@ -13,7 +13,7 @@ import {
   canEncodeVideo,
 } from "mediabunny";
 import type { EditState } from "../../types";
-import type { ExportQuality, ExportScale } from "../export";
+import { MP4_AUDIO_BITRATE_BY_QUALITY, type ExportQuality, type ExportScale } from "../export";
 import { colorFilterCss, paintTemperatureOverlay } from "./color";
 import { buildExportAudio } from "./audio";
 import { computeFramePlan } from "./frame";
@@ -29,15 +29,18 @@ export interface ExportMp4Options {
   signal?: AbortSignal;
 }
 
-/** Bits per pixel per second at the UI's assumed 30fps — kept identical to estimateExportBytes()
- * in lib/export.ts so the size shown in the sidebar is a prediction of what this actually produces. */
-const VIDEO_BITS_PER_PIXEL: Record<ExportQuality, number> = { high: 0.12, balanced: 0.07, small: 0.035 };
-const ASSUMED_FPS = 30;
-const AUDIO_BITRATE = 96_000;
-const MIN_VIDEO_BITRATE = 300_000;
+/** Use mediabunny's constant-quality ladder. H.264 gets quantizer-based encoding where the
+ * browser supports it, with an automatically calculated bitrate fallback everywhere else. */
+const MP4_QUALITY_LEVEL: Record<ExportQuality, "very-high" | "high" | "medium"> = {
+  high: "very-high",
+  balanced: "high",
+  small: "medium",
+};
 
 export async function exportMp4({ file, edit, scale, quality, filename, onProgress, signal }: ExportMp4Options): Promise<{ blob: Blob; filename: string }> {
   const input = new Input({ source: new BlobSource(file), formats: ALL_FORMATS });
+  let output: Output<Mp4OutputFormat, BufferTarget> | null = null;
+  let outputSettled = false;
 
   try {
     const videoTrack = await input.getPrimaryVideoTrack();
@@ -47,18 +50,12 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
 
     const { cropPx, outSize } = await computeFramePlan(videoTrack, edit.crop, scale, "mp4");
 
-    const videoBitrate = Math.max(
-      MIN_VIDEO_BITRATE,
-      Math.round(outSize.width * outSize.height * ASSUMED_FPS * VIDEO_BITS_PER_PIXEL[quality]),
-    );
-    // { bitrate } picks quantitative (bits/sec) rate control — a bare number is instead read as a
-    // 0..1 qualitative quality level, which silently misinterprets any real bitrate as "extreme".
-    const videoQuality = new Quality({ bitrate: videoBitrate });
+    const videoQuality = new Quality(MP4_QUALITY_LEVEL[quality]);
 
     const videoOk = await canEncodeVideo("avc", { width: outSize.width, height: outSize.height, quality: videoQuality });
     if (!videoOk) throw new Error("This browser can't encode H.264 at this resolution.");
 
-    const audioQuality = new Quality({ bitrate: AUDIO_BITRATE });
+    const audioQuality = new Quality({ bitrate: MP4_AUDIO_BITRATE_BY_QUALITY[quality] });
 
     const audioTrack = edit.isMuted ? null : await input.getPrimaryAudioTrack();
     let hasAudio = !!audioTrack && (await audioTrack.canDecode());
@@ -72,11 +69,13 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
       if (!audioOk) hasAudio = false;
     }
 
-    const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+    output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
 
     const canvas = new OffscreenCanvas(outSize.width, outSize.height);
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Couldn't create a canvas for rendering frames.");
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
 
     const videoSource = new CanvasSource(canvas, { codec: "avc", quality: videoQuality });
     output.addVideoTrack(videoSource);
@@ -86,9 +85,11 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
 
     await output.start();
 
-    const trimStart = edit.trimStart;
-    const trimEnd = Math.max(edit.trimEnd, trimStart + 0.001);
-    const speed = Math.max(0.01, edit.speed);
+    // State normally comes from constrained controls, but an imported/corrupt edit must not be
+    // able to pass NaN/Infinity into WebCodecs (which reports the rather opaque timestamp error).
+    const trimStart = Number.isFinite(edit.trimStart) ? Math.max(0, edit.trimStart) : 0;
+    const trimEnd = Number.isFinite(edit.trimEnd) ? Math.max(edit.trimEnd, trimStart + 0.001) : trimStart + 0.001;
+    const speed = Number.isFinite(edit.speed) ? Math.max(0.01, edit.speed) : 1;
 
     const throwIfCanceled = () => {
       if (signal?.aborted) throw new ExportCanceledError();
@@ -115,6 +116,7 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
     const trimDuration = trimEnd - trimStart;
 
     const sink = new VideoSampleSink(videoTrack);
+    let writtenFrames = 0;
     for await (const sample of sink.samples(trimStart, trimEnd)) {
       if (signal?.aborted) {
         sample.close();
@@ -124,25 +126,30 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
       const sampleTimestamp = sample.timestamp;
       const sampleDuration = sample.duration;
 
+      // Intersect the decoded frame with the requested trim interval before rebasing it. Decoders
+      // may emit a preroll frame before trimStart; malformed containers can also expose non-finite
+      // timing metadata. CanvasSource only accepts finite, non-negative timing values.
+      if (!Number.isFinite(sampleTimestamp) || !Number.isFinite(sampleDuration) || sampleDuration <= 0) {
+        sample.close();
+        continue;
+      }
+      const frameStart = Math.max(sampleTimestamp, trimStart);
+      const frameEnd = Math.min(sampleTimestamp + sampleDuration, trimEnd);
+      const timestamp = Math.max(0, (frameStart - trimStart) / speed);
+      const duration = (frameEnd - frameStart) / speed;
+      if (!Number.isFinite(timestamp) || !Number.isFinite(duration) || duration <= 0) {
+        sample.close();
+        continue;
+      }
+
       ctx.filter = filter;
       sample.draw(ctx, cropPx.left, cropPx.top, cropPx.width, cropPx.height, 0, 0, outSize.width, outSize.height);
       ctx.filter = "none";
       paintTemperatureOverlay(ctx, outSize.width, outSize.height, edit.color.temperature);
       sample.close();
 
-      // samples(trimStart, trimEnd) can hand back one leading sample whose own timestamp is
-      // earlier than trimStart (mediabunny anchors playback to the last keyframe-derived sample
-      // at or before the start), which would otherwise produce a negative timestamp here and
-      // make mediabunny's encoder throw. Clip it to the trim boundary instead, mirroring the
-      // same clamp already applied to audio in buildExportAudio().
-      let timestamp = (sampleTimestamp - trimStart) / speed;
-      let duration = sampleDuration / speed;
-      if (timestamp < 0) {
-        duration += timestamp;
-        timestamp = 0;
-      }
-      if (duration <= 0) continue;
       await videoSource.add(timestamp, duration);
+      writtenFrames += 1;
 
       const frac = Math.min(1, Math.max(0, (sampleTimestamp - trimStart) / trimDuration));
       onProgress?.(audioProgressShare + frac * (1 - audioProgressShare));
@@ -150,16 +157,33 @@ export async function exportMp4({ file, edit, scale, quality, filename, onProgre
 
     if (signal?.aborted) {
       await output.cancel();
+      outputSettled = true;
       throw new ExportCanceledError();
     }
 
+    if (writtenFrames === 0) {
+      await output.cancel();
+      outputSettled = true;
+      throw new Error("The selected range doesn't contain any exportable video frames.");
+    }
+
     await output.finalize();
+    outputSettled = true;
     onProgress?.(1);
 
     const buffer = output.target.buffer;
     if (!buffer) throw new Error("Export finished with no output data.");
 
     return { blob: new Blob([buffer], { type: "video/mp4" }), filename: `${filename}.mp4` };
+  } catch (error) {
+    if (output && !outputSettled) {
+      try {
+        await output.cancel();
+      } catch {
+        // Preserve the original export error; cleanup failure is secondary.
+      }
+    }
+    throw error;
   } finally {
     input.dispose();
   }
