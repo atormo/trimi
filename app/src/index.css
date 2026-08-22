@@ -25,6 +25,7 @@
   --tool-audio: #a78bfa;
   --danger: #f87171;
   --danger-solid: #c92f42;
+  --danger-action-shadow: 0 1px 2px rgba(77, 11, 25, 0.24), 0 6px 16px rgba(134, 22, 46, 0.18);
   --brand-blue: #a9d4fb;
 
   /* fixed dark ink for text sitting on a bright, non-theme-flipped fill (tool-crop, brand-blue) */
@@ -133,6 +134,20 @@ button {
   transform: scale(0.96);
 }
 
+.unlink-device-button {
+  background: var(--bg-chip);
+  color: var(--text-2);
+  box-shadow: none;
+  transition: background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.unlink-device-button:not(:disabled):hover,
+.unlink-device-button:not(:disabled):focus-visible {
+  background: var(--danger-solid);
+  color: #ffffff;
+  box-shadow: var(--danger-action-shadow);
+}
+
 .transport-island {
   cursor: grab;
   touch-action: none;
@@ -155,7 +170,8 @@ button {
   }
 
   .new-video-menu,
-  .new-video-menu button {
+  .new-video-menu button,
+  .unlink-device-button {
     transition: none;
   }
 }

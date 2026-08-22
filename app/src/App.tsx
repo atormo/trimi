@@ -19,7 +19,6 @@ function App() {
   const [newVideoOpen, setNewVideoOpen] = useState(false);
   const [newVideoMotion, setNewVideoMotion] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
-  const [unlinkHovered, setUnlinkHovered] = useState(false);
 
   const logo = (
     <img
@@ -82,9 +81,9 @@ function App() {
                   editor.clearFile();
                 }}
                 style={{
-                  height: 38, padding: "0 14px", borderRadius: 999, border: "none",
+                  height: 40, padding: "0 14px", borderRadius: 999, border: "none",
                   background: "var(--danger-solid)", color: "#ffffff",
-                  boxShadow: "0 1px 2px rgba(77, 11, 25, 0.24), 0 6px 16px rgba(134, 22, 46, 0.18)",
+                  boxShadow: "var(--danger-action-shadow)",
                   cursor: "pointer", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: 650,
                 }}
               >
@@ -155,16 +154,12 @@ function App() {
                     setAccountOpen(false);
                     license.unlink();
                   }}
-                  onMouseEnter={() => setUnlinkHovered(true)}
-                  onMouseLeave={() => setUnlinkHovered(false)}
+                  className="unlink-device-button"
                   style={{
-                    height: 32, borderRadius: "var(--radius-sm)", border: "none",
-                    background: unlinkHovered && !license.unlinking ? "var(--danger-solid)" : "var(--bg-chip)",
-                    color: unlinkHovered && !license.unlinking ? "#ffffff" : "var(--text-2)",
+                    height: 40, borderRadius: "var(--radius-sm)", border: "none",
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                     fontSize: 12, fontWeight: 500, cursor: license.unlinking ? "not-allowed" : "pointer",
                     opacity: license.unlinking ? 0.6 : 1,
-                    transition: "background 0.15s, color 0.15s",
                   }}
                 >
                   <IconLogout size={13} stroke={2} />
