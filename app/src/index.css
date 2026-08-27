@@ -91,6 +91,61 @@ button {
   font-family: inherit;
 }
 
+button:focus-visible,
+[role="slider"]:focus-visible,
+[tabindex="0"]:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
+.add-video-button,
+.clip-icon-button {
+  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.add-video-button:hover,
+.add-video-button:focus-visible,
+.clip-icon-button:not(:disabled):hover,
+.clip-icon-button:not(:disabled):focus-visible {
+  background: var(--bg-chip-hover) !important;
+}
+
+.add-video-button:active,
+.clip-icon-button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.clip-icon-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.clip-icon-button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.clip-remove-button:not(:disabled):hover,
+.clip-remove-button:not(:disabled):focus-visible {
+  background: var(--danger-solid) !important;
+  color: #fff;
+  box-shadow: var(--danger-action-shadow);
+}
+
+.timeline-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
 @keyframes trimi-spin {
   to { transform: rotate(360deg); }
 }
@@ -171,7 +226,10 @@ button {
 
   .new-video-menu,
   .new-video-menu button,
-  .unlink-device-button {
+  .unlink-device-button,
+  .add-video-button,
+  .clip-icon-button,
+  .timeline-clip {
     transition: none;
   }
 }

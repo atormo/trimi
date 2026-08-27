@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FULL_CROP,
   MIN_CROP_SIZE,
@@ -7,50 +7,65 @@ import {
   labelForCrop,
   type ColorAdjustments,
   type CropRect,
-  type EditState,
+  type VideoClip,
 } from "../types";
 
-// Shared by the timeline feedback and the committed trim state swap.
 export const CUT_COMPRESS_MS = 180;
+
+const makeClip = (file: File): VideoClip => ({
+  id: crypto.randomUUID(),
+  file,
+  url: URL.createObjectURL(file),
+  duration: 0,
+  naturalAspect: null,
+  sourceSize: null,
+  edit: defaultEditState(0),
+  trimView: { start: 0, end: 0 },
+});
 
 export function useVideoEditor() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  const [file, setFile] = useState<File | null>(null);
-  const [videoUrl, setVideoUrl] = useState<string | null>(null);
-  const [duration, setDuration] = useState(0);
+  const [clips, setClips] = useState<VideoClip[]>([]);
+  const [activeClipId, setActiveClipId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [edit, setEdit] = useState<EditState>(defaultEditState(0));
-  const [naturalAspect, setNaturalAspect] = useState<number | null>(null);
-  const [sourceSize, setSourceSize] = useState<{ width: number; height: number } | null>(null);
   const [cropEditing, setCropEditing] = useState(false);
   const [trimEditing, setTrimEditing] = useState(false);
-  // The window the timeline currently displays as "the whole clip" — starts as the full
-  // source, and snaps to [trimStart, trimEnd] once the user commits a cut.
-  const [trimView, setTrimView] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
   const [cropEditStart, setCropEditStart] = useState<CropRect>(FULL_CROP);
-  // Which preset button should read as "active" — tracked explicitly (not re-derived from crop
-  // geometry) so that clicking a preset whose ratio happens to match the source's natural aspect
-  // (its crop rect is then identical to full-frame Free) still highlights that preset, and clicking
-  // Free right after still highlights Free even though the rect didn't change. null = Free.
   const [cropPresetLabel, setCropPresetLabel] = useState<string | null>(null);
-  const [trimEditStart, setTrimEditStart] = useState<{ start: number; end: number }>({ start: 0, end: 0 });
-  // True while the timeline clears the trimmed-away edges before committing the shorter view.
+  const [trimEditStart, setTrimEditStart] = useState({ start: 0, end: 0 });
   const [cutPending, setCutPending] = useState(false);
-  const pendingCutRef = useRef<{ start: number; end: number } | null>(null);
+
+  const clipsRef = useRef(clips);
+  const activeClipIdRef = useRef(activeClipId);
+  const pendingCutRef = useRef<{ clipId: string; start: number; end: number } | null>(null);
+  const pendingAutoPlayRef = useRef(false);
   const scrubTargetRef = useRef<number | null>(null);
   const scrubSeekingRef = useRef(false);
   const scrubUsesFrameCallbackRef = useRef(false);
   const scrubFrameRequestRef = useRef<number | null>(null);
   const advanceScrubRef = useRef<() => void>(() => {});
+  clipsRef.current = clips;
+  activeClipIdRef.current = activeClipId;
+
+  const activeClip = useMemo(
+    () => clips.find((clip) => clip.id === activeClipId) ?? clips[0] ?? null,
+    [activeClipId, clips],
+  );
+
+  const updateClip = useCallback((id: string, update: (clip: VideoClip) => VideoClip) => {
+    setClips((current) => current.map((clip) => clip.id === id ? update(clip) : clip));
+  }, []);
+
+  const updateActiveClip = useCallback((update: (clip: VideoClip) => VideoClip) => {
+    const id = activeClipIdRef.current;
+    if (id) updateClip(id, update);
+  }, [updateClip]);
 
   const resetScrubPipeline = useCallback(() => {
-    const v = videoRef.current as (HTMLVideoElement & {
-      cancelVideoFrameCallback?: (id: number) => void;
-    }) | null;
-    if (v && scrubFrameRequestRef.current !== null && v.cancelVideoFrameCallback) {
-      v.cancelVideoFrameCallback(scrubFrameRequestRef.current);
+    const video = videoRef.current as (HTMLVideoElement & { cancelVideoFrameCallback?: (id: number) => void }) | null;
+    if (video && scrubFrameRequestRef.current !== null && video.cancelVideoFrameCallback) {
+      video.cancelVideoFrameCallback(scrubFrameRequestRef.current);
     }
     scrubTargetRef.current = null;
     scrubSeekingRef.current = false;
@@ -58,141 +73,206 @@ export function useVideoEditor() {
     scrubFrameRequestRef.current = null;
   }, []);
 
-  const loadFile = useCallback((f: File) => {
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    const url = URL.createObjectURL(f);
-    setFile(f);
-    setVideoUrl(url);
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setNaturalAspect(null);
-    setSourceSize(null);
+  const resetEditingModes = useCallback(() => {
+    pendingCutRef.current = null;
     setCropEditing(false);
     setTrimEditing(false);
     setCutPending(false);
     setCropPresetLabel(null);
-    pendingCutRef.current = null;
-    resetScrubPipeline();
-    setTrimView({ start: 0, end: 0 });
-  }, [resetScrubPipeline, videoUrl]);
-
-  const clearFile = useCallback(() => {
-    const v = videoRef.current;
-    if (v) v.pause();
-    if (videoUrl) URL.revokeObjectURL(videoUrl);
-    pendingCutRef.current = null;
-    resetScrubPipeline();
-    setFile(null);
-    setVideoUrl(null);
-    setDuration(0);
-    setCurrentTime(0);
-    setIsPlaying(false);
-    setEdit(defaultEditState(0));
-    setNaturalAspect(null);
-    setSourceSize(null);
-    setCropEditing(false);
-    setTrimEditing(false);
-    setTrimView({ start: 0, end: 0 });
-    setCropEditStart(FULL_CROP);
-    setCropPresetLabel(null);
-    setTrimEditStart({ start: 0, end: 0 });
-    setCutPending(false);
-  }, [resetScrubPipeline, videoUrl]);
-
-  const onLoadedMetadata = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const d = v.duration;
-    setDuration(d);
-    setEdit(defaultEditState(d));
-    setTrimView({ start: 0, end: d });
-    if (v.videoWidth && v.videoHeight) {
-      setNaturalAspect(v.videoWidth / v.videoHeight);
-      setSourceSize({ width: v.videoWidth, height: v.videoHeight });
-    } else {
-      setNaturalAspect(null);
-      setSourceSize(null);
-    }
   }, []);
 
-  useEffect(() => {
-    const v = videoRef.current as (HTMLVideoElement & { webkitPreservesPitch?: boolean; mozPreservesPitch?: boolean }) | null;
-    if (!v) return;
-    v.playbackRate = edit.speed;
-    v.preservesPitch = edit.preservesPitch;
-    v.webkitPreservesPitch = edit.preservesPitch;
-    v.mozPreservesPitch = edit.preservesPitch;
-  }, [edit.speed, edit.preservesPitch]);
+  const selectClip = useCallback((id: string, autoplay = false) => {
+    const clip = clipsRef.current.find((item) => item.id === id);
+    if (!clip) return;
+    videoRef.current?.pause();
+    resetScrubPipeline();
+    resetEditingModes();
+    pendingAutoPlayRef.current = autoplay;
+    setIsPlaying(false);
+    setCurrentTime(clip.edit.trimStart);
+    setActiveClipId(id);
+  }, [resetEditingModes, resetScrubPipeline]);
+
+  const loadFile = useCallback((file: File) => {
+    videoRef.current?.pause();
+    for (const clip of clipsRef.current) URL.revokeObjectURL(clip.url);
+    const clip = makeClip(file);
+    resetScrubPipeline();
+    resetEditingModes();
+    setClips([clip]);
+    setActiveClipId(clip.id);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }, [resetEditingModes, resetScrubPipeline]);
+
+  const addFile = useCallback((file: File) => {
+    const clip = makeClip(file);
+    videoRef.current?.pause();
+    resetScrubPipeline();
+    resetEditingModes();
+    setClips((current) => [...current, clip]);
+    setActiveClipId(clip.id);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }, [resetEditingModes, resetScrubPipeline]);
+
+  const clearFile = useCallback(() => {
+    videoRef.current?.pause();
+    for (const clip of clipsRef.current) URL.revokeObjectURL(clip.url);
+    resetScrubPipeline();
+    resetEditingModes();
+    setClips([]);
+    setActiveClipId(null);
+    setCurrentTime(0);
+    setIsPlaying(false);
+  }, [resetEditingModes, resetScrubPipeline]);
+
+  useEffect(() => () => {
+    for (const clip of clipsRef.current) URL.revokeObjectURL(clip.url);
+  }, []);
+
+  const removeClip = useCallback((id: string) => {
+    const current = clipsRef.current;
+    const index = current.findIndex((clip) => clip.id === id);
+    if (index < 0 || current.length <= 1) return;
+    URL.revokeObjectURL(current[index].url);
+    const remaining = current.filter((clip) => clip.id !== id);
+    setClips(remaining);
+    if (activeClipIdRef.current === id) {
+      const next = remaining[Math.min(index, remaining.length - 1)];
+      setActiveClipId(next.id);
+      setCurrentTime(next.edit.trimStart);
+      resetEditingModes();
+    }
+  }, [resetEditingModes]);
+
+  const moveClip = useCallback((sourceId: string, targetId: string) => {
+    if (sourceId === targetId) return;
+    setClips((current) => {
+      const sourceIndex = current.findIndex((clip) => clip.id === sourceId);
+      const targetIndex = current.findIndex((clip) => clip.id === targetId);
+      if (sourceIndex < 0 || targetIndex < 0) return current;
+      const next = [...current];
+      const [source] = next.splice(sourceIndex, 1);
+      next.splice(targetIndex, 0, source);
+      return next;
+    });
+  }, []);
+
+  const reorderClip = useCallback((id: string, direction: -1 | 1) => {
+    setClips((current) => {
+      const index = current.findIndex((clip) => clip.id === id);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.length) return current;
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
+  }, []);
+
+  const onLoadedMetadata = useCallback(() => {
+    const video = videoRef.current;
+    const id = activeClipIdRef.current;
+    if (!video || !id) return;
+    const duration = video.duration;
+    const prior = clipsRef.current.find((item) => item.id === id);
+    const firstLoad = !prior || prior.duration <= 0;
+    updateClip(id, (clip) => ({
+      ...clip,
+      duration,
+      edit: firstLoad ? defaultEditState(duration) : clip.edit,
+      trimView: firstLoad ? { start: 0, end: duration } : clip.trimView,
+      naturalAspect: video.videoWidth && video.videoHeight ? video.videoWidth / video.videoHeight : null,
+      sourceSize: video.videoWidth && video.videoHeight ? { width: video.videoWidth, height: video.videoHeight } : null,
+    }));
+    const start = firstLoad ? 0 : (prior?.edit.trimStart ?? 0);
+    video.currentTime = start;
+    setCurrentTime(start);
+    if (pendingAutoPlayRef.current) {
+      pendingAutoPlayRef.current = false;
+      void video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  }, [updateClip]);
+
+  const edit = activeClip?.edit ?? defaultEditState(0);
+  const duration = activeClip?.duration ?? 0;
+  const trimView = activeClip?.trimView ?? { start: 0, end: 0 };
 
   useEffect(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    v.muted = edit.isMuted;
-  }, [edit.isMuted]);
+    const video = videoRef.current as (HTMLVideoElement & { webkitPreservesPitch?: boolean; mozPreservesPitch?: boolean }) | null;
+    if (!video) return;
+    video.playbackRate = edit.speed;
+    video.preservesPitch = edit.preservesPitch;
+    video.webkitPreservesPitch = edit.preservesPitch;
+    video.mozPreservesPitch = edit.preservesPitch;
+    video.muted = edit.isMuted;
+  }, [activeClipId, edit.isMuted, edit.preservesPitch, edit.speed]);
+
+  const advanceToNextClip = useCallback(() => {
+    const current = clipsRef.current;
+    const index = current.findIndex((clip) => clip.id === activeClipIdRef.current);
+    if (index >= 0 && index < current.length - 1) {
+      selectClip(current[index + 1].id, true);
+      return true;
+    }
+    return false;
+  }, [selectClip]);
 
   const finishPlayback = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    const rangeEnd = Math.min(edit.trimEnd, Number.isFinite(v.duration) ? v.duration : edit.trimEnd);
-    v.pause();
+    const video = videoRef.current;
+    if (!video) return;
+    video.pause();
     resetScrubPipeline();
-    v.currentTime = rangeEnd;
-    setCurrentTime(rangeEnd);
+    if (advanceToNextClip()) return;
+    video.currentTime = edit.trimEnd;
+    setCurrentTime(edit.trimEnd);
     setIsPlaying(false);
-  }, [edit.trimEnd, resetScrubPipeline]);
+  }, [advanceToNextClip, edit.trimEnd, resetScrubPipeline]);
 
   const onTimeUpdate = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
-    if (scrubSeekingRef.current) return;
-    if (v.currentTime >= edit.trimEnd - 0.01) {
-      finishPlayback();
-      return;
-    }
-    setCurrentTime(Math.min(edit.trimEnd, Math.max(edit.trimStart, v.currentTime)));
+    const video = videoRef.current;
+    if (!video || scrubSeekingRef.current) return;
+    if (video.currentTime >= edit.trimEnd - 0.01) return finishPlayback();
+    setCurrentTime(Math.min(edit.trimEnd, Math.max(edit.trimStart, video.currentTime)));
   }, [edit.trimEnd, edit.trimStart, finishPlayback]);
 
-  // timeupdate can be very sparse at high playback rates. Syncing while playback is active
-  // keeps the playhead travelling smoothly across the complete selected range.
   useEffect(() => {
     if (!isPlaying) return;
     let frameId = 0;
-    const syncPlayhead = () => {
-      const v = videoRef.current;
-      if (!v) return;
-      if (v.currentTime >= edit.trimEnd - 0.01) {
-        finishPlayback();
-        return;
-      }
-      if (v.paused) {
-        setIsPlaying(false);
-        return;
-      }
-      setCurrentTime(Math.min(edit.trimEnd, Math.max(edit.trimStart, v.currentTime)));
-      frameId = requestAnimationFrame(syncPlayhead);
+    const sync = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (video.currentTime >= edit.trimEnd - 0.01) return finishPlayback();
+      if (video.paused) return setIsPlaying(false);
+      setCurrentTime(Math.min(edit.trimEnd, Math.max(edit.trimStart, video.currentTime)));
+      frameId = requestAnimationFrame(sync);
     };
-    frameId = requestAnimationFrame(syncPlayhead);
+    frameId = requestAnimationFrame(sync);
     return () => cancelAnimationFrame(frameId);
-  }, [isPlaying, edit.trimEnd, edit.trimStart, finishPlayback]);
+  }, [edit.trimEnd, edit.trimStart, finishPlayback, isPlaying]);
 
   const togglePlay = useCallback(() => {
-    const v = videoRef.current;
-    if (!v) return;
+    const video = videoRef.current;
+    if (!video) return;
     resetScrubPipeline();
-    if (v.paused) {
-      if (v.currentTime >= edit.trimEnd - 0.01 || v.currentTime < edit.trimStart) {
-        v.currentTime = edit.trimStart;
+    if (video.paused) {
+      if (video.currentTime >= edit.trimEnd - 0.01) {
+        if (advanceToNextClip()) return;
+        video.currentTime = edit.trimStart;
+        setCurrentTime(edit.trimStart);
+      } else if (video.currentTime < edit.trimStart) {
+        video.currentTime = edit.trimStart;
         setCurrentTime(edit.trimStart);
       }
-      void v.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+      void video.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     } else {
-      v.pause();
+      video.pause();
       setIsPlaying(false);
     }
-  }, [edit.trimStart, edit.trimEnd, resetScrubPipeline]);
+  }, [advanceToNextClip, edit.trimEnd, edit.trimStart, resetScrubPipeline]);
 
   useEffect(() => {
-    if (!videoUrl) return;
+    if (!activeClip) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.code !== "Space" || event.repeat || event.defaultPrevented) return;
       const target = event.target;
@@ -202,63 +282,53 @@ export function useVideoEditor() {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [togglePlay, videoUrl]);
+  }, [activeClip, togglePlay]);
 
-  const seek = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
+  const seek = useCallback((time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
     resetScrubPipeline();
-    const clamped = Math.min(Math.max(t, edit.trimStart), edit.trimEnd);
-    v.currentTime = clamped;
+    const clamped = Math.min(Math.max(time, edit.trimStart), edit.trimEnd);
+    video.currentTime = clamped;
     setCurrentTime(clamped);
-  }, [edit.trimStart, edit.trimEnd, resetScrubPipeline]);
+  }, [edit.trimEnd, edit.trimStart, resetScrubPipeline]);
 
   const advanceScrub = useCallback(() => {
-    const v = videoRef.current;
-    if (!v || !scrubSeekingRef.current) return;
+    const video = videoRef.current;
+    if (!video || !scrubSeekingRef.current) return;
     const target = scrubTargetRef.current;
     scrubTargetRef.current = null;
-    if (target === null || Math.abs(v.currentTime - target) < 0.0005) {
+    if (target === null || Math.abs(video.currentTime - target) < 0.0005) {
       scrubSeekingRef.current = false;
       scrubUsesFrameCallbackRef.current = false;
       return;
     }
-
-    const videoWithFrameCallback = v as HTMLVideoElement & {
-      requestVideoFrameCallback?: (callback: () => void) => number;
-    };
-    scrubUsesFrameCallbackRef.current = Boolean(videoWithFrameCallback.requestVideoFrameCallback);
-    if (videoWithFrameCallback.requestVideoFrameCallback) {
-      scrubFrameRequestRef.current = videoWithFrameCallback.requestVideoFrameCallback(() => {
+    const enhanced = video as HTMLVideoElement & { requestVideoFrameCallback?: (callback: () => void) => number };
+    scrubUsesFrameCallbackRef.current = Boolean(enhanced.requestVideoFrameCallback);
+    if (enhanced.requestVideoFrameCallback) {
+      scrubFrameRequestRef.current = enhanced.requestVideoFrameCallback(() => {
         scrubFrameRequestRef.current = null;
         advanceScrubRef.current();
       });
     }
-    v.currentTime = target;
+    video.currentTime = target;
   }, []);
   advanceScrubRef.current = advanceScrub;
 
-  // Pointer events can arrive much faster than the video decoder. Preserve only the newest
-  // target and start the next exact seek after the previous frame reaches the compositor.
-  const previewFrame = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    const upperBound = Number.isFinite(v.duration) ? v.duration : duration;
-    const target = Math.min(Math.max(t, 0), upperBound);
+  const previewFrame = useCallback((time: number) => {
+    const video = videoRef.current;
+    if (!video) return;
+    const target = Math.min(Math.max(time, 0), Number.isFinite(video.duration) ? video.duration : duration);
     scrubTargetRef.current = target;
     if (scrubSeekingRef.current) return;
     scrubSeekingRef.current = true;
     advanceScrubRef.current();
   }, [duration]);
 
-  const commitPreviewFrame = useCallback((t: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    const upperBound = Number.isFinite(v.duration) ? v.duration : duration;
-    const target = Math.min(Math.max(t, 0), upperBound);
-    setCurrentTime(target);
-    previewFrame(target);
-  }, [duration, previewFrame]);
+  const commitPreviewFrame = useCallback((time: number) => {
+    setCurrentTime(time);
+    previewFrame(time);
+  }, [previewFrame]);
 
   const onSeeked = useCallback(() => {
     if (!scrubSeekingRef.current || scrubUsesFrameCallbackRef.current) return;
@@ -266,165 +336,109 @@ export function useVideoEditor() {
   }, []);
 
   const setTrim = useCallback((start: number, end: number) => {
-    setEdit((prev) => {
-      const lo = trimView.start;
-      const hi = trimView.end || duration;
+    updateActiveClip((clip) => {
+      const lo = clip.trimView.start;
+      const hi = clip.trimView.end || clip.duration;
       const trimStart = Math.max(lo, Math.min(start, end - 0.1));
       const trimEnd = Math.min(hi, Math.max(end, start + 0.1));
-      const v = videoRef.current;
-      if (v && !scrubSeekingRef.current && (v.currentTime < trimStart || v.currentTime > trimEnd)) {
-        v.currentTime = trimStart;
+      const video = videoRef.current;
+      if (video && !scrubSeekingRef.current && (video.currentTime < trimStart || video.currentTime > trimEnd)) {
+        video.currentTime = trimStart;
         setCurrentTime(trimStart);
       }
-      return { ...prev, trimStart, trimEnd };
+      return { ...clip, edit: { ...clip.edit, trimStart, trimEnd } };
     });
-  }, [duration, trimView]);
+  }, [updateActiveClip]);
 
-  /** Starts the trim feedback; the actual state swap lands on a fixed timer. */
   const commitTrim = useCallback(() => {
-    pendingCutRef.current = { start: edit.trimStart, end: edit.trimEnd };
+    if (!activeClip) return;
+    pendingCutRef.current = { clipId: activeClip.id, start: edit.trimStart, end: edit.trimEnd };
     setCutPending(true);
-  }, [edit.trimStart, edit.trimEnd]);
+  }, [activeClip, edit.trimEnd, edit.trimStart]);
 
   useEffect(() => {
     if (!cutPending) return;
-    const t = setTimeout(() => {
-      if (pendingCutRef.current) {
-        setTrimView(pendingCutRef.current);
-        pendingCutRef.current = null;
-      }
+    const timer = setTimeout(() => {
+      const pending = pendingCutRef.current;
+      if (pending) updateClip(pending.clipId, (clip) => ({ ...clip, trimView: { start: pending.start, end: pending.end } }));
+      pendingCutRef.current = null;
       setTrimEditing(false);
       setCutPending(false);
     }, CUT_COMPRESS_MS);
-    return () => clearTimeout(t);
-  }, [cutPending]);
+    return () => clearTimeout(timer);
+  }, [cutPending, updateClip]);
 
   const resetTrim = useCallback(() => {
-    const fullRange = { start: 0, end: duration };
-    const v = videoRef.current;
-    if (v) {
-      v.pause();
-      v.currentTime = 0;
-    }
-    pendingCutRef.current = null;
-    setIsPlaying(false);
+    updateActiveClip((clip) => ({ ...clip, edit: { ...clip.edit, trimStart: 0, trimEnd: clip.duration }, trimView: { start: 0, end: clip.duration } }));
+    videoRef.current?.pause();
+    if (videoRef.current) videoRef.current.currentTime = 0;
     setCurrentTime(0);
-    setTrimView(fullRange);
-    setEdit((prev) => ({ ...prev, trimStart: 0, trimEnd: duration }));
-    setTrimEditStart(fullRange);
+    setIsPlaying(false);
     setTrimEditing(false);
     setCutPending(false);
-  }, [duration]);
+  }, [updateActiveClip]);
 
   const startTrimEdit = useCallback(() => {
     setTrimEditStart({ start: edit.trimStart, end: edit.trimEnd });
     setTrimEditing(true);
-  }, [edit.trimStart, edit.trimEnd]);
+  }, [edit.trimEnd, edit.trimStart]);
   const cancelTrimEdit = useCallback(() => {
-    setEdit((prev) => ({ ...prev, trimStart: trimEditStart.start, trimEnd: trimEditStart.end }));
+    updateActiveClip((clip) => ({ ...clip, edit: { ...clip.edit, trimStart: trimEditStart.start, trimEnd: trimEditStart.end } }));
     setTrimEditing(false);
-  }, [trimEditStart]);
+  }, [trimEditStart, updateActiveClip]);
 
-  const setSpeed = useCallback((speed: number) => {
-    setEdit((prev) => ({ ...prev, speed }));
-  }, []);
-
-  const setPreservesPitch = useCallback((preservesPitch: boolean) => {
-    setEdit((prev) => ({ ...prev, preservesPitch }));
-  }, []);
-
-  const setMuted = useCallback((isMuted: boolean) => {
-    setEdit((prev) => ({ ...prev, isMuted }));
-  }, []);
+  const patchEdit = useCallback((patch: Partial<VideoClip["edit"]>) => {
+    updateActiveClip((clip) => ({ ...clip, edit: { ...clip.edit, ...patch } }));
+  }, [updateActiveClip]);
+  const setSpeed = useCallback((speed: number) => patchEdit({ speed }), [patchEdit]);
+  const setPreservesPitch = useCallback((preservesPitch: boolean) => patchEdit({ preservesPitch }), [patchEdit]);
+  const setMuted = useCallback((isMuted: boolean) => patchEdit({ isMuted }), [patchEdit]);
 
   const applyCropRect = useCallback((rect: CropRect) => {
-    setEdit((prev) => {
-      const width = Math.min(1, Math.max(MIN_CROP_SIZE, rect.width));
-      const height = Math.min(1, Math.max(MIN_CROP_SIZE, rect.height));
-      const x = Math.min(Math.max(0, rect.x), 1 - width);
-      const y = Math.min(Math.max(0, rect.y), 1 - height);
-      return { ...prev, crop: { x, y, width, height } };
-    });
-  }, []);
-
+    const width = Math.min(1, Math.max(MIN_CROP_SIZE, rect.width));
+    const height = Math.min(1, Math.max(MIN_CROP_SIZE, rect.height));
+    patchEdit({ crop: { x: Math.min(Math.max(0, rect.x), 1 - width), y: Math.min(Math.max(0, rect.y), 1 - height), width, height } });
+  }, [patchEdit]);
   const setCrop = useCallback((rect: CropRect) => {
-    // Manual drag on the canvas. Free imposes no ratio constraint, so any shape drawn while
-    // it's active is still "Free" — only re-derive the label (almost always down to "Custom")
-    // when a ratio-constrained preset was active, since dragging immediately breaks that ratio.
-    setCropPresetLabel((prevLabel) => (prevLabel === null ? null : labelForCrop(rect, naturalAspect)));
+    setCropPresetLabel((label) => label === null ? null : labelForCrop(rect, activeClip?.naturalAspect ?? null));
     applyCropRect(rect);
-  }, [naturalAspect, applyCropRect]);
-
-  // Preset button clicks — the label is set directly from the clicked preset, not re-derived
-  // from the resulting rect, so it stays correct even when that rect is geometrically identical
-  // to Free or another preset (see cropPresetLabel above).
+  }, [activeClip?.naturalAspect, applyCropRect]);
   const setCropPreset = useCallback((label: string | null, ratio: number | null) => {
-    if (!naturalAspect) return;
+    if (!activeClip?.naturalAspect) return;
     setCropPresetLabel(label);
-    applyCropRect(centeredCropForRatio(ratio, naturalAspect));
-  }, [naturalAspect, applyCropRect]);
-
+    applyCropRect(centeredCropForRatio(ratio, activeClip.naturalAspect));
+  }, [activeClip?.naturalAspect, applyCropRect]);
   const startCropEdit = useCallback(() => {
     setCropEditStart(edit.crop);
-    setCropPresetLabel(labelForCrop(edit.crop, naturalAspect));
+    setCropPresetLabel(labelForCrop(edit.crop, activeClip?.naturalAspect ?? null));
     setCropEditing(true);
-  }, [edit.crop, naturalAspect]);
+  }, [activeClip?.naturalAspect, edit.crop]);
   const applyCrop = useCallback(() => setCropEditing(false), []);
   const cancelCropEdit = useCallback(() => {
-    setEdit((prev) => ({ ...prev, crop: cropEditStart }));
-    setCropPresetLabel(labelForCrop(cropEditStart, naturalAspect));
+    patchEdit({ crop: cropEditStart });
+    setCropPresetLabel(labelForCrop(cropEditStart, activeClip?.naturalAspect ?? null));
     setCropEditing(false);
-  }, [cropEditStart, naturalAspect]);
-
+  }, [activeClip?.naturalAspect, cropEditStart, patchEdit]);
   const setColor = useCallback((patch: Partial<ColorAdjustments>) => {
-    setEdit((prev) => ({ ...prev, color: { ...prev.color, ...patch } }));
-  }, []);
+    updateActiveClip((clip) => ({ ...clip, edit: { ...clip.edit, color: { ...clip.edit.color, ...patch } } }));
+  }, [updateActiveClip]);
+  const resetColor = useCallback(() => setColor({ exposure: 0, contrast: 1, saturation: 1, temperature: 0 }), [setColor]);
 
-  const resetColor = useCallback(() => {
-    setEdit((prev) => ({ ...prev, color: { exposure: 0, contrast: 1, saturation: 1, temperature: 0 } }));
-  }, []);
+  const totalDuration = clips.reduce((sum, clip) => sum + Math.max(0, clip.edit.trimEnd - clip.edit.trimStart) / Math.max(clip.edit.speed, 0.01), 0);
 
   return {
-    videoRef,
-    file,
-    videoUrl,
-    duration,
-    currentTime,
-    isPlaying,
-    edit,
-    naturalAspect,
-    sourceSize,
-    trimView,
-    cropEditing,
-    cropEditStart,
-    cropPresetLabel,
-    trimEditing,
-    trimEditStart,
-    cutPending,
-    loadFile,
-    clearFile,
-    onLoadedMetadata,
-    onTimeUpdate,
-    togglePlay,
-    seek,
-    previewFrame,
-    commitPreviewFrame,
-    onSeeked,
-    setTrim,
-    commitTrim,
-    resetTrim,
-    startTrimEdit,
-    cancelTrimEdit,
-    setSpeed,
-    setPreservesPitch,
-    setMuted,
-    setCrop,
-    setCropPreset,
-    startCropEdit,
-    applyCrop,
-    cancelCropEdit,
-    setColor,
-    resetColor,
+    videoRef, clips, activeClip, activeClipId, totalDuration,
+    file: activeClip?.file ?? null, videoUrl: activeClip?.url ?? null,
+    duration, currentTime, isPlaying, edit,
+    naturalAspect: activeClip?.naturalAspect ?? null,
+    sourceSize: activeClip?.sourceSize ?? null,
+    trimView, cropEditing, cropEditStart, cropPresetLabel,
+    trimEditing, trimEditStart, cutPending,
+    loadFile, addFile, clearFile, removeClip, selectClip, moveClip, reorderClip,
+    onLoadedMetadata, onTimeUpdate, togglePlay, seek, previewFrame, commitPreviewFrame, onSeeked,
+    setTrim, commitTrim, resetTrim, startTrimEdit, cancelTrimEdit,
+    setSpeed, setPreservesPitch, setMuted, setCrop, setCropPreset,
+    startCropEdit, applyCrop, cancelCropEdit, setColor, resetColor,
   };
 }
 

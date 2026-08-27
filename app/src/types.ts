@@ -88,6 +88,17 @@ export interface EditState {
   color: ColorAdjustments;
 }
 
+export interface VideoClip {
+  id: string;
+  file: File;
+  url: string;
+  duration: number;
+  naturalAspect: number | null;
+  sourceSize: { width: number; height: number } | null;
+  edit: EditState;
+  trimView: { start: number; end: number };
+}
+
 export function defaultEditState(duration: number): EditState {
   return {
     trimStart: 0,

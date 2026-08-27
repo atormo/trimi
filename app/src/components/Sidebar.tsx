@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { IconAspectRatio, IconCheck, IconCrop, IconFileExport, IconFileText, IconGauge, IconPalette, IconRotate, IconScissors, IconVideo, IconVolume } from "@tabler/icons-react";
+import { IconArrowLeft, IconArrowRight, IconAspectRatio, IconCheck, IconCrop, IconFileExport, IconFileText, IconGauge, IconPalette, IconPlus, IconRotate, IconScissors, IconTrash, IconVideo, IconVolume } from "@tabler/icons-react";
 import type { VideoEditor } from "../hooks/useVideoEditor";
 import { CROP_PRESETS } from "../types";
 import { Checkbox, Slider, TextField, Toggle } from "./controls";
@@ -121,7 +121,8 @@ function OptionGrid<T extends string>({
 
 export function Sidebar({ editor }: { editor: VideoEditor }) {
   const {
-    file, edit, trimView, duration, naturalAspect, sourceSize,
+    file, edit, trimView, duration, naturalAspect, clips, activeClip, activeClipId, totalDuration,
+    addFile, removeClip, reorderClip,
     commitTrim, resetTrim, trimEditing, cutPending, startTrimEdit, cancelTrimEdit,
     cropEditing, cropEditStart, cropPresetLabel, startCropEdit, applyCrop, cancelCropEdit, setCropPreset,
     setSpeed, setPreservesPitch, setMuted, setColor, resetColor,
@@ -137,6 +138,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   const [exportProgress, setExportProgress] = useState(0);
   const [exportError, setExportError] = useState<string | null>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
+  const addVideoInputRef = useRef<HTMLInputElement | null>(null);
   // mediabunny + the SoundTouch worklet are ~500KB — loaded on demand, only once the Export tab
   // is actually opened, so the common edit-only session never pays for them.
   const exportEngineRef = useRef<Promise<typeof import("../lib/export-engine")> | null>(null);
@@ -173,8 +175,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
     try {
       const exportFn = format === "gif" ? mod.exportGif : mod.exportMp4;
       const { blob, filename: outName } = await exportFn({
-        file,
-        edit,
+        clips: clips.map((clip) => ({ file: clip.file, edit: clip.edit })),
         scale,
         quality,
         filename: filename || "trimi-export",
@@ -206,26 +207,28 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   const isTrimmed = trimView.start > 0.01 || (trimView.end > 0 && trimView.end < duration - 0.01);
   const cropChanged = Math.abs(edit.crop.width - cropEditStart.width) > 0.001 || Math.abs(edit.crop.height - cropEditStart.height) > 0.001
     || Math.abs(edit.crop.x - cropEditStart.x) > 0.001 || Math.abs(edit.crop.y - cropEditStart.y) > 0.001;
-  const cropped = sourceSize ? croppedSize(sourceSize, edit.crop) : null;
+  const outputClip = clips[0];
+  const cropped = outputClip?.sourceSize ? croppedSize(outputClip.sourceSize, outputClip.edit.crop) : null;
   const outputSize = cropped ? scaledSize(cropped, scale, format) : null;
-  const exportDuration = Math.max(0, (edit.trimEnd - edit.trimStart) / Math.max(edit.speed, 0.01));
+  const exportDuration = totalDuration;
+  const allMuted = clips.every((clip) => clip.edit.isMuted);
   const exportEstimate = outputSize
     ? estimateExportBytes({
         size: outputSize,
         duration: exportDuration,
         format,
         quality,
-        muted: edit.isMuted || format === "gif",
+        muted: allMuted || format === "gif",
       })
     : 0;
 
   useEffect(() => {
-    if (!sourceSize) return;
-    const next = croppedSize(sourceSize, edit.crop);
+    if (!outputClip?.sourceSize) return;
+    const next = croppedSize(outputClip.sourceSize, outputClip.edit.crop);
     if (wouldNotReduce(next, scale, format) || (format === "gif" && (scale === "1080" || scale === "720"))) {
       setScale("original");
     }
-  }, [edit.crop, format, scale, sourceSize]);
+  }, [format, outputClip, scale]);
 
   return (
     <div style={{
@@ -263,6 +266,40 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 22, padding: "8px 18px 18px", overflowY: "auto" }}>
         {tab === "edit" ? (
           <>
+            <Section title="Clips" icon={<IconVideo size={14} stroke={2} color="var(--brand-blue)" />}>
+              <div style={{ padding: "10px 11px", borderRadius: "var(--radius-sm)", background: "var(--bg-chip)", display: "flex", alignItems: "center", gap: 9 }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div title={file?.name} style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file?.name}</div>
+                  <div className="tabular-nums" style={{ marginTop: 2, fontSize: 10.5, color: "var(--text-3)" }}>
+                    Clip {Math.max(1, clips.findIndex((clip) => clip.id === activeClipId) + 1)} of {clips.length}
+                  </div>
+                </div>
+                {clips.length > 1 && activeClip && (
+                  <div style={{ display: "flex", gap: 2 }}>
+                    <button type="button" className="clip-icon-button" aria-label="Move clip left" title="Move clip left" disabled={clips[0]?.id === activeClip.id} onClick={() => reorderClip(activeClip.id, -1)}><IconArrowLeft size={14} /></button>
+                    <button type="button" className="clip-icon-button" aria-label="Move clip right" title="Move clip right" disabled={clips.at(-1)?.id === activeClip.id} onClick={() => reorderClip(activeClip.id, 1)}><IconArrowRight size={14} /></button>
+                    <button type="button" className="clip-icon-button clip-remove-button" aria-label="Remove selected clip" title="Remove selected clip" onClick={() => removeClip(activeClip.id)}><IconTrash size={14} /></button>
+                  </div>
+                )}
+              </div>
+              <input
+                ref={addVideoInputRef}
+                type="file"
+                accept="video/*,.mov,.m4v"
+                aria-label="Choose another video"
+                style={{ display: "none" }}
+                onChange={(event) => {
+                  const nextFile = event.target.files?.[0];
+                  if (nextFile) addFile(nextFile);
+                  event.currentTarget.value = "";
+                }}
+              />
+              <button type="button" className="add-video-button" onClick={() => addVideoInputRef.current?.click()} style={{ ...secondaryBtn, height: 40 }}>
+                <IconPlus size={15} stroke={2.2} aria-hidden="true" />
+                Add another video
+              </button>
+            </Section>
+
             <Section title="Trim" icon={<IconScissors size={14} stroke={2} color="var(--tool-trim)" />}>
               {trimEditing ? (
                 <>
@@ -459,7 +496,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                 {formatTime(exportDuration)}
                 {" · "}{format === "gif" ? "up to ~" : "~"}{formatFileSize(exportEstimate)}
                 {" · "}{format === "mp4" ? "H.264" : `GIF · ${GIF_COLORS_BY_QUALITY[quality]} colors`}
-                {" · "}{format === "gif" || edit.isMuted ? "No audio" : "Audio"}
+                {" · "}{format === "gif" || allMuted ? "No audio" : "Audio"}
               </div>
             </div>
             {format === "gif" && exportDuration > GIF_LONG_CLIP_SECONDS && (

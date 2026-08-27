@@ -95,8 +95,10 @@ function App() {
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           {editor.file && (
             <>
-              <span style={{ fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{editor.file.name}</span>
-              <span style={{ fontSize: 12, color: "var(--text-3)" }}>{formatDuration(editor.duration)}</span>
+              <span title={editor.file.name} style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{editor.file.name}</span>
+              <span className="tabular-nums" style={{ fontSize: 12, color: "var(--text-3)" }}>
+                {editor.clips.length > 1 ? `${editor.clips.length} clips · ` : ""}{formatDuration(editor.totalDuration)}
+              </span>
             </>
           )}
         </div>
