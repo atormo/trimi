@@ -10,7 +10,7 @@ import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
 import { ActivationGate } from "./components/ActivationGate";
 
-const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p-audio";
+const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p-silent";
 const SAMPLE_VIDEO_NAME = "wolfsample.mp4";
 const SAMPLE_VIDEO_SOURCE_URL = "https://www.pexels.com/video/wolf-looking-around-15178051/";
 
