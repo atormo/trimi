@@ -10,8 +10,9 @@ import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
 import { ActivationGate } from "./components/ActivationGate";
 
-const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=1080p";
-const SAMPLE_VIDEO_NAME = "Wolf sample.mp4";
+const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p";
+const SAMPLE_VIDEO_NAME = "wolfsample.mp4";
+const SAMPLE_VIDEO_SOURCE_URL = "https://www.pexels.com/video/wolf-looking-around-15178051/";
 
 function App() {
   const editor = useVideoEditor();
@@ -20,6 +21,7 @@ function App() {
   const license = useLicense();
   const { retry: retryLicenseCheck } = license;
   const hasVideo = Boolean(editor.videoUrl);
+  const isSampleSelected = editor.file?.name === SAMPLE_VIDEO_NAME;
   const [accountOpen, setAccountOpen] = useState(false);
   const [licensePromptOpen, setLicensePromptOpen] = useState(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -100,13 +102,23 @@ function App() {
         <div style={{ width: 240, height: 40, display: "flex", alignItems: "center" }}>
           {logo}
         </div>
-        <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
           {editor.file && (
             <>
-              <span title={editor.file.name} style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{editor.file.name}</span>
-              <span className="tabular-nums" style={{ fontSize: 12, color: "var(--text-3)" }}>
-                {editor.clips.length > 1 ? `${editor.clips.length} clips · ` : ""}{formatDuration(editor.totalDuration)}
-              </span>
+              <div style={{ maxWidth: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <span title={editor.file.name} style={{ maxWidth: 280, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: 500, color: "var(--text-1)" }}>{editor.file.name}</span>
+                <span className="tabular-nums" style={{ flexShrink: 0, fontSize: 12, color: "var(--text-3)" }}>
+                  {editor.clips.length > 1 ? `${editor.clips.length} clips · ` : ""}{formatDuration(editor.totalDuration)}
+                </span>
+              </div>
+              {isSampleSelected && (
+                <div className="sample-video-credit">
+                  <span>Video by</span>
+                  <a className="sample-video-link" href={SAMPLE_VIDEO_SOURCE_URL} target="_blank" rel="noreferrer">
+                    Nicky Pe
+                  </a>
+                </div>
+              )}
             </>
           )}
         </div>
