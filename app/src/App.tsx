@@ -10,7 +10,7 @@ import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
 import { ActivationGate } from "./components/ActivationGate";
 
-const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=12s";
+const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=1080p";
 const SAMPLE_VIDEO_NAME = "Wolf sample.mp4";
 
 function App() {
