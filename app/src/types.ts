@@ -97,10 +97,7 @@ export interface VideoClip {
   sourceSize: { width: number; height: number } | null;
   edit: EditState;
   trimView: { start: number; end: number };
-  transitionIn: "fade" | null;
 }
-
-export const FADE_EDGE_SECONDS = 0.35;
 
 export function defaultEditState(duration: number): EditState {
   return {

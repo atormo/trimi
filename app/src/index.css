@@ -100,8 +100,7 @@ button:focus-visible,
 
 .add-video-button,
 .clip-icon-button,
-.clip-card-select,
-.clip-transition-button {
+.clip-card-select {
   transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
@@ -114,13 +113,21 @@ button:focus-visible,
 
 .add-video-button:active,
 .clip-icon-button:not(:disabled):active,
-.clip-card-select:active,
-.clip-transition-button:active {
+.clip-card-select:active {
   transform: scale(0.96);
 }
 
 .add-video-button {
   margin-top: 12px;
+}
+
+.clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .clip-card {
@@ -132,10 +139,33 @@ button:focus-visible,
   display: flex;
   align-items: center;
   gap: 2px;
-  transition: box-shadow 150ms ease-out;
+  transition: transform 150ms ease-out, opacity 150ms ease-out, box-shadow 150ms ease-out;
 }
 
 .clip-card[data-active="true"] {
+  box-shadow: 0 0 0 2px var(--brand-blue), var(--control-shadow);
+}
+
+.clip-card[data-reorderable="true"] {
+  cursor: grab;
+}
+
+.clip-card[data-reorderable="true"] .clip-card-select {
+  cursor: grab;
+}
+
+.clip-card[data-dragging="true"] {
+  opacity: 0.55;
+  transform: scale(0.98);
+  cursor: grabbing;
+}
+
+.clip-card[data-dragging="true"] .clip-card-select {
+  cursor: grabbing;
+}
+
+.clip-card[data-drag-over="true"] {
+  transform: translateY(-2px);
   box-shadow: 0 0 0 2px var(--brand-blue), var(--control-shadow);
 }
 
@@ -161,48 +191,13 @@ button:focus-visible,
   background: var(--bg-chip-hover);
 }
 
-.clip-transition-row {
-  position: relative;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.clip-transition-row::before {
-  content: "";
-  position: absolute;
-  inset-block: 0;
-  left: 50%;
-  width: 1px;
-  background: var(--border-strong);
-  transform: translateX(-50%);
-}
-
-.clip-transition-button {
-  position: relative;
-  min-width: 72px;
-  height: 40px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--bg-panel-solid);
+.clip-reorder-hint {
+  margin-top: 8px;
+  padding-left: 8px;
   color: var(--text-3);
-  box-shadow: var(--control-shadow);
-  cursor: pointer;
-  font-size: 11.5px;
-  font-weight: 600;
-}
-
-.clip-transition-button:hover,
-.clip-transition-button:focus-visible {
-  background: var(--bg-chip-hover);
-  color: var(--text-1);
-}
-
-.clip-transition-button[data-active="true"] {
-  background: var(--brand-blue);
-  color: var(--ink-solid);
+  font-size: 10.5px;
+  line-height: 1.35;
+  text-wrap: pretty;
 }
 
 .clip-icon-button {
@@ -234,34 +229,6 @@ button:focus-visible,
 .timeline-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
-}
-
-.timeline-clip-handle {
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: 0;
-  border-radius: 0 0 var(--radius-sm) 0;
-  background: rgba(12, 18, 32, 0.76);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  cursor: grab;
-  font-size: 10px;
-  font-weight: 600;
-  transition: transform 150ms ease-out, background-color 150ms ease-out;
-}
-
-.timeline-clip-handle:hover,
-.timeline-clip-handle:focus-visible {
-  background: rgba(12, 18, 32, 0.92);
-}
-
-.timeline-clip-handle:active {
-  cursor: grabbing;
-  transform: scale(0.96);
 }
 
 @keyframes trimi-spin {
@@ -349,12 +316,7 @@ button:focus-visible,
   .clip-icon-button,
   .clip-card,
   .clip-card-select,
-  .clip-transition-button,
   .timeline-clip {
-    transition: none;
-  }
-
-  .timeline-clip-handle {
     transition: none;
   }
 }

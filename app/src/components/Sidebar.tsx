@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { IconArrowLeft, IconArrowRight, IconAspectRatio, IconCheck, IconCrop, IconFileExport, IconFileText, IconGauge, IconPalette, IconPlus, IconRotate, IconScissors, IconTrash, IconVideo, IconVolume } from "@tabler/icons-react";
+import { IconAspectRatio, IconCheck, IconCrop, IconFileExport, IconFileText, IconGauge, IconPalette, IconPlus, IconRotate, IconScissors, IconTrash, IconVideo, IconVolume } from "@tabler/icons-react";
 import type { VideoEditor } from "../hooks/useVideoEditor";
 import { CROP_PRESETS } from "../types";
 import { Checkbox, Slider, TextField, Toggle } from "./controls";
@@ -122,7 +122,7 @@ function OptionGrid<T extends string>({
 export function Sidebar({ editor }: { editor: VideoEditor }) {
   const {
     file, edit, trimView, duration, naturalAspect, clips, activeClipId, totalDuration,
-    addFile, removeClip, reorderClip, selectClip, toggleFade,
+    addFile, removeClip, moveClip, reorderClip, selectClip,
     commitTrim, resetTrim, trimEditing, cutPending, startTrimEdit, cancelTrimEdit,
     cropEditing, cropEditStart, cropPresetLabel, startCropEdit, applyCrop, cancelCropEdit, setCropPreset,
     setSpeed, setPreservesPitch, setMuted, setColor, resetColor,
@@ -175,7 +175,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
     try {
       const exportFn = format === "gif" ? mod.exportGif : mod.exportMp4;
       const { blob, filename: outName } = await exportFn({
-        clips: clips.map((clip) => ({ file: clip.file, edit: clip.edit, transitionIn: clip.transitionIn })),
+        clips: clips.map((clip) => ({ file: clip.file, edit: clip.edit })),
         scale,
         quality,
         filename: filename || "trimi-export",
@@ -202,6 +202,13 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   };
 
   const handleCancelExport = () => exportAbortRef.current?.abort();
+
+  const [draggedClipId, setDraggedClipId] = useState<string | null>(null);
+  const [dragOverClipId, setDragOverClipId] = useState<string | null>(null);
+  const clearClipDrag = () => {
+    setDraggedClipId(null);
+    setDragOverClipId(null);
+  };
 
   const canCut = edit.trimStart > trimView.start + 0.05 || edit.trimEnd < trimView.end - 0.05;
   const isTrimmed = trimView.start > 0.01 || (trimView.end > 0 && trimView.end < duration - 0.01);
@@ -267,42 +274,64 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
         {tab === "edit" ? (
           <>
             <div role="group" aria-label="Video sequence" style={{ display: "flex", flexDirection: "column" }}>
-              {clips.map((clip, index) => (
-                <div key={clip.id}>
-                  {index > 0 && (
-                    <div className="clip-transition-row">
-                      <button
-                        type="button"
-                        className="clip-transition-button"
-                        aria-label={`Fade into ${clip.file.name}`}
-                        aria-pressed={clip.transitionIn === "fade"}
-                        data-active={clip.transitionIn === "fade"}
-                        onClick={() => toggleFade(clip.id)}
-                      >
-                        Fade
-                      </button>
-                    </div>
-                  )}
-                  <div className="clip-card" data-active={clip.id === activeClipId}>
+              <ol className="clip-list">
+                {clips.map((clip, index) => (
+                  <li
+                    key={clip.id}
+                    className="clip-card"
+                    data-active={clip.id === activeClipId}
+                    data-dragging={draggedClipId === clip.id}
+                    data-drag-over={dragOverClipId === clip.id && draggedClipId !== clip.id}
+                    data-reorderable={clips.length > 1}
+                    draggable={clips.length > 1}
+                    onDragStart={(event) => {
+                      if ((event.target as HTMLElement).closest(".clip-remove-button")) {
+                        event.preventDefault();
+                        return;
+                      }
+                      setDraggedClipId(clip.id);
+                      selectClip(clip.id);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", clip.id);
+                    }}
+                    onDragEnter={() => {
+                      if (draggedClipId && draggedClipId !== clip.id) setDragOverClipId(clip.id);
+                    }}
+                    onDragOver={(event) => {
+                      if (!draggedClipId || draggedClipId === clip.id) return;
+                      event.preventDefault();
+                      event.dataTransfer.dropEffect = "move";
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const sourceId = event.dataTransfer.getData("text/plain") || draggedClipId;
+                      if (sourceId && sourceId !== clip.id) moveClip(sourceId, clip.id);
+                      clearClipDrag();
+                    }}
+                    onDragEnd={clearClipDrag}
+                  >
                     <button
                       type="button"
                       className="clip-card-select"
                       aria-pressed={clip.id === activeClipId}
+                      aria-describedby={clips.length > 1 ? "clip-reorder-hint" : undefined}
+                      aria-label={`${clip.file.name}, video ${index + 1} of ${clips.length}${clips.length > 1 ? ". Press Alt and Arrow Up or Arrow Down to reorder" : ""}`}
                       onClick={() => selectClip(clip.id)}
+                      onKeyDown={(event) => {
+                        if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
+                        event.preventDefault();
+                        reorderClip(clip.id, event.key === "ArrowUp" ? -1 : 1);
+                      }}
                     >
                       <span title={clip.file.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>{clip.file.name}</span>
                       <span className="tabular-nums" style={{ fontSize: 10.5, color: "var(--text-3)" }}>
                         {formatTime(Math.max(0, clip.edit.trimEnd - clip.edit.trimStart) / Math.max(clip.edit.speed, 0.01))}
                       </span>
                     </button>
-                    <div style={{ display: "flex", gap: 2 }}>
-                      <button type="button" className="clip-icon-button" aria-label={`Move ${clip.file.name} left`} title="Move left" disabled={index === 0} onClick={() => reorderClip(clip.id, -1)}><IconArrowLeft size={14} aria-hidden="true" /></button>
-                      <button type="button" className="clip-icon-button" aria-label={`Move ${clip.file.name} right`} title="Move right" disabled={index === clips.length - 1} onClick={() => reorderClip(clip.id, 1)}><IconArrowRight size={14} aria-hidden="true" /></button>
-                      <button type="button" className="clip-icon-button clip-remove-button" aria-label={`Remove ${clip.file.name}`} title="Remove" disabled={clips.length === 1} onClick={() => removeClip(clip.id)}><IconTrash size={14} aria-hidden="true" /></button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+                    <button type="button" draggable={false} className="clip-icon-button clip-remove-button" aria-label={`Remove ${clip.file.name}`} title="Remove" disabled={clips.length === 1} onClick={() => removeClip(clip.id)}><IconTrash size={14} aria-hidden="true" /></button>
+                  </li>
+                ))}
+              </ol>
               <input
                 ref={addVideoInputRef}
                 type="file"
@@ -319,6 +348,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                 <IconPlus size={15} stroke={2.2} aria-hidden="true" />
                 Add another video
               </button>
+              {clips.length > 1 && <div id="clip-reorder-hint" className="clip-reorder-hint">Drag these cards to reorder</div>}
             </div>
 
             <Section title="Trim" icon={<IconScissors size={14} stroke={2} color="var(--tool-trim)" />}>

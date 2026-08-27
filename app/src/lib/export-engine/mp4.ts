@@ -14,9 +14,9 @@ import {
   type InputAudioTrack,
   type InputVideoTrack,
 } from "mediabunny";
-import { FADE_EDGE_SECONDS, type EditState } from "../../types";
+import type { EditState } from "../../types";
 import { MP4_AUDIO_BITRATE_BY_QUALITY, type ExportQuality, type ExportScale } from "../export";
-import { colorFilterCss, paintFadeToBlack, paintTemperatureOverlay } from "./color";
+import { colorFilterCss, paintTemperatureOverlay } from "./color";
 import { buildExportAudio } from "./audio";
 import { computeFramePlan, type FramePlan } from "./frame";
 import { ExportCanceledError } from "./errors";
@@ -24,7 +24,6 @@ import { ExportCanceledError } from "./errors";
 export interface ExportClipInput {
   file: File;
   edit: EditState;
-  transitionIn: "fade" | null;
 }
 
 export interface ExportMp4Options {
@@ -49,28 +48,12 @@ function safeTiming(edit: EditState) {
   return { trimStart, trimEnd, speed, outputDuration: (trimEnd - trimStart) / speed };
 }
 
-async function normalizeAudio(
-  buffer: AudioBuffer,
-  duration: number,
-  sampleRate: number,
-  numberOfChannels: number,
-  fadeIn: boolean,
-  fadeOut: boolean,
-) {
+async function normalizeAudio(buffer: AudioBuffer, duration: number, sampleRate: number, numberOfChannels: number) {
   const frameCount = Math.max(1, Math.round(duration * sampleRate));
   const context = new OfflineAudioContext(numberOfChannels, frameCount, sampleRate);
   const source = context.createBufferSource();
-  const gain = context.createGain();
   source.buffer = buffer;
-  source.connect(gain);
-  gain.connect(context.destination);
-  const edge = Math.min(FADE_EDGE_SECONDS, duration / 2);
-  gain.gain.setValueAtTime(fadeIn ? 0 : 1, 0);
-  if (fadeIn) gain.gain.linearRampToValueAtTime(1, edge);
-  if (fadeOut) {
-    gain.gain.setValueAtTime(1, Math.max(edge, duration - edge));
-    gain.gain.linearRampToValueAtTime(0, duration);
-  }
+  source.connect(context.destination);
   source.start(0);
   return context.startRendering();
 }
@@ -88,7 +71,6 @@ export async function exportMp4({ clips, scale, quality, filename, onProgress, s
     audioTrack: InputAudioTrack | null;
     plan: FramePlan;
     edit: EditState;
-    transitionIn: "fade" | null;
     timing: ReturnType<typeof safeTiming>;
   }> = [];
   let output: Output<Mp4OutputFormat, BufferTarget> | null = null;
@@ -109,7 +91,6 @@ export async function exportMp4({ clips, scale, quality, filename, onProgress, s
         audioTrack: audioTrack && await audioTrack.canDecode() ? audioTrack : null,
         plan: await computeFramePlan(videoTrack, clip.edit.crop, scale, "mp4"),
         edit: clip.edit,
-        transitionIn: clip.transitionIn,
         timing: safeTiming(clip.edit),
       });
     }
@@ -152,8 +133,7 @@ export async function exportMp4({ clips, scale, quality, filename, onProgress, s
 
     if (audioSource && audioConfig) {
       let audioDone = 0;
-      for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
-        const source = sources[sourceIndex];
+      for (const source of sources) {
         throwIfCanceled();
         let audioBuffer: AudioBuffer;
         if (source.audioTrack) {
@@ -164,14 +144,7 @@ export async function exportMp4({ clips, scale, quality, filename, onProgress, s
             speed: source.timing.speed,
             preservesPitch: source.edit.preservesPitch,
           });
-          audioBuffer = await normalizeAudio(
-            rendered,
-            source.timing.outputDuration,
-            audioConfig.sampleRate,
-            audioConfig.numberOfChannels,
-            source.transitionIn === "fade",
-            sources[sourceIndex + 1]?.transitionIn === "fade",
-          );
+          audioBuffer = await normalizeAudio(rendered, source.timing.outputDuration, audioConfig.sampleRate, audioConfig.numberOfChannels);
         } else {
           audioBuffer = silentAudio(source.timing.outputDuration, audioConfig.sampleRate, audioConfig.numberOfChannels);
         }
@@ -184,8 +157,7 @@ export async function exportMp4({ clips, scale, quality, filename, onProgress, s
 
     let outputOffset = 0;
     let writtenFrames = 0;
-    for (let sourceIndex = 0; sourceIndex < sources.length; sourceIndex++) {
-      const source = sources[sourceIndex];
+    for (const source of sources) {
       const sink = new VideoSampleSink(source.videoTrack);
       const filter = colorFilterCss(source.edit.color);
       const { trimStart, trimEnd, speed, outputDuration } = source.timing;
@@ -222,13 +194,6 @@ export async function exportMp4({ clips, scale, quality, filename, onProgress, s
         sample.draw(context, source.plan.cropPx.left, source.plan.cropPx.top, source.plan.cropPx.width, source.plan.cropPx.height, drawX, drawY, drawWidth, drawHeight);
         context.filter = "none";
         paintTemperatureOverlay(context, outSize.width, outSize.height, source.edit.color.temperature);
-        const localTime = Math.max(0, (frameStart - trimStart) / speed);
-        const fadeEdge = Math.min(FADE_EDGE_SECONDS, outputDuration / 2);
-        const fadeInAlpha = source.transitionIn === "fade" && fadeEdge > 0 ? 1 - Math.min(1, localTime / fadeEdge) : 0;
-        const fadeOutAlpha = sources[sourceIndex + 1]?.transitionIn === "fade" && fadeEdge > 0
-          ? 1 - Math.min(1, Math.max(0, outputDuration - localTime) / fadeEdge)
-          : 0;
-        paintFadeToBlack(context, outSize.width, outSize.height, Math.max(fadeInAlpha, fadeOutAlpha));
         sample.close();
 
         await videoSource.add(timestamp, duration);

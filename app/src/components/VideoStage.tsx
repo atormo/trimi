@@ -352,14 +352,6 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
             }}
           />
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", ...temperatureOverlayStyle(edit.color.temperature) }} />
-          <div
-            aria-hidden="true"
-            style={{
-              position: "absolute", inset: 0, pointerEvents: "none", background: "#000",
-              opacity: 1 - editor.transitionOpacity,
-              willChange: isPlaying && editor.transitionOpacity < 1 ? "opacity" : undefined,
-            }}
-          />
         </div>
 
         {cropEditing && naturalAspect && (

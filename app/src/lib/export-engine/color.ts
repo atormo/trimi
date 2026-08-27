@@ -27,19 +27,3 @@ export function paintTemperatureOverlay(
   ctx.fillRect(0, 0, width, height);
   ctx.restore();
 }
-
-export function paintFadeToBlack(
-  ctx: OffscreenCanvasRenderingContext2D,
-  width: number,
-  height: number,
-  opacity: number,
-) {
-  if (opacity <= 0) return;
-  ctx.save();
-  ctx.filter = "none";
-  ctx.globalCompositeOperation = "source-over";
-  ctx.globalAlpha = Math.min(1, Math.max(0, opacity));
-  ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, width, height);
-  ctx.restore();
-}

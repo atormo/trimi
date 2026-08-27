@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { IconGripVertical } from "@tabler/icons-react";
 import type { VideoEditor } from "../hooks/useVideoEditor";
 import { CUT_COMPRESS_MS } from "../hooks/useVideoEditor";
 import { formatTime, formatTimePrecise } from "../lib/format";
@@ -107,9 +106,10 @@ function TrimHandle({ side, pct, onDown }: {
       data-testid={`trim-${side}-handle`}
       onPointerDown={(event) => { event.stopPropagation(); onDown(event); }}
       style={{
-        position: "absolute", top: -8, bottom: -8, left: `calc(${pct}% - 20px)`, width: 40,
+        position: "absolute", top: 0, bottom: 0,
+        left: side === "start" ? `${pct}%` : `calc(${pct}% - 40px)`, width: 40,
         padding: 0, border: 0, background: "transparent", cursor: "ew-resize",
-        display: "flex", alignItems: "center", justifyContent: "center", zIndex: 3,
+        display: "flex", alignItems: "center", justifyContent: side === "start" ? "flex-start" : "flex-end", zIndex: 3,
       }}
     >
       <span aria-hidden="true" style={{
@@ -131,13 +131,12 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
   const {
     clips, activeClip, activeClipId, totalDuration, currentTime, trimEditing, cutPending,
     isPlaying, togglePlay, setTrim, seek, previewFrame, commitPreviewFrame,
-    selectClip, moveClip, reorderClip,
+    selectClip,
   } = editor;
   const segmentRefs = useRef(new Map<string, HTMLDivElement>());
   const trimBoundsRef = useRef({ start: editor.edit.trimStart, end: editor.edit.trimEnd });
   const [drag, setDrag] = useState<DragMode>(null);
   const [scrubTime, setScrubTime] = useState<number | null>(null);
-  const [draggedClipId, setDraggedClipId] = useState<string | null>(null);
   const interactionRef = useRef<{
     mode: Exclude<DragMode, null>;
     pointerId: number;
@@ -253,21 +252,11 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                 ref={(node) => { if (node) segmentRefs.current.set(clip.id, node); else segmentRefs.current.delete(clip.id); }}
                 className="timeline-clip"
                 data-active={active}
-                data-dragging={draggedClipId === clip.id}
-                onDragOver={(event) => { if (draggedClipId && draggedClipId !== clip.id) event.preventDefault(); }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const sourceId = event.dataTransfer.getData("text/plain") || draggedClipId;
-                  if (sourceId) moveClip(sourceId, clip.id);
-                  setDraggedClipId(null);
-                }}
                 style={{
                   position: "relative", minWidth: 84, flexBasis: 0, flexGrow: Math.max(clipDuration, totalDuration * 0.08),
                   borderRadius: "var(--radius-sm)", background: "var(--bg-chip)",
                   boxShadow: active ? "inset 0 0 0 2px var(--tool-trim-strong)" : "inset 0 0 0 1px var(--tool-trim)",
-                  opacity: draggedClipId === clip.id ? 0.45 : 1,
-                  transform: draggedClipId === clip.id ? "scale(0.98)" : "scale(1)",
-                  transition: "transform 150ms ease-out, opacity 150ms ease-out", overflow: "visible",
+                  overflow: "visible",
                 }}
               >
                 <div
@@ -299,37 +288,12 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                   {clip.duration > 0 && <Filmstrip videoUrl={clip.url} rangeStart={viewStart} rangeEnd={viewEnd} crop={clip.edit.crop} naturalAspect={clip.naturalAspect} filter={colorFilterCss(clip.edit.color)} />}
                   <span aria-hidden="true" style={{ position: "absolute", insetBlock: 0, left: 0, width: 3, background: "var(--tool-trim-strong)", opacity: active ? 1 : 0.72 }} />
                   <span aria-hidden="true" style={{ position: "absolute", insetBlock: 0, right: 0, width: 3, background: "var(--tool-trim-strong)", opacity: active ? 1 : 0.72 }} />
-                  <span aria-hidden="true" className="tabular-nums" style={{ position: "absolute", right: 6, bottom: 5, padding: "2px 5px", borderRadius: 4, background: "rgba(12,18,32,0.72)", color: "#fff", fontSize: 9.5 }}>
-                    {formatTime(clipDuration)}
-                  </span>
+                  {!(active && trimEditing) && (
+                    <span aria-hidden="true" className="tabular-nums" style={{ position: "absolute", right: 6, bottom: 5, padding: "2px 5px", borderRadius: 4, background: "rgba(12,18,32,0.72)", color: "#fff", fontSize: 9.5 }}>
+                      {formatTime(clipDuration)}
+                    </span>
+                  )}
                 </div>
-
-                <button
-                  type="button"
-                  className="timeline-clip-handle"
-                  aria-label={`Drag video ${index + 1} to reorder`}
-                  title="Drag to reorder"
-                  draggable={!trimEditing}
-                  onClick={() => selectClip(clip.id)}
-                  onPointerDown={(event) => event.stopPropagation()}
-                  onDragStart={(event) => {
-                    event.stopPropagation();
-                    setDraggedClipId(clip.id);
-                    event.dataTransfer.effectAllowed = "move";
-                    event.dataTransfer.setData("text/plain", clip.id);
-                  }}
-                  onDragEnd={() => setDraggedClipId(null)}
-                  onKeyDown={(event) => {
-                    if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
-                      event.preventDefault();
-                      reorderClip(clip.id, event.key === "ArrowLeft" ? -1 : 1);
-                    }
-                  }}
-                  style={{ position: "absolute", left: 3, top: 0, zIndex: 3 }}
-                >
-                  <IconGripVertical size={11} aria-hidden="true" />
-                  <span className="tabular-nums">{index + 1}</span>
-                </button>
 
                 {active && trimEditing && (
                   <>
