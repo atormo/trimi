@@ -231,18 +231,15 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
       height: "100%", minHeight: 0, borderRadius: "var(--radius-lg)", background: "var(--bg-panel-solid)",
       boxShadow: "var(--island-shadow)", padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 9,
     }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center" }}>
         <div className="tabular-nums" style={{ fontSize: 12.5, color: "var(--text-2)" }}>
           <span style={{ color: "var(--text-1)", fontWeight: 600 }}>{drag ? formatTimePrecise(counterTime) : formatTime(counterTime)}</span>
           <span style={{ color: "var(--text-3)" }}> / {formatTime(totalDuration)}</span>
         </div>
-        <div style={{ fontSize: 11.5, color: "var(--text-3)" }}>
-          {clips.length} {clips.length === 1 ? "clip" : "clips"} · drag to reorder
-        </div>
       </div>
 
       <div className="timeline-scroll" style={{ minHeight: 0, overflowX: "auto", overflowY: "visible", padding: "8px 0" }}>
-        <div style={{ display: "flex", height: 68, minWidth: "100%", width: clips.length > 4 ? `${clips.length * 25}%` : "100%", gap: 4 }}>
+        <div style={{ display: "flex", height: 68, minWidth: "100%", width: clips.length > 4 ? `${clips.length * 25}%` : "100%", gap: 2 }}>
           {clips.map((clip, index) => {
             const active = clip.id === activeClipId;
             const clipDuration = outputDuration(clip);
@@ -257,13 +254,6 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                 className="timeline-clip"
                 data-active={active}
                 data-dragging={draggedClipId === clip.id}
-                draggable={!trimEditing}
-                onDragStart={(event) => {
-                  setDraggedClipId(clip.id);
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("text/plain", clip.id);
-                }}
-                onDragEnd={() => setDraggedClipId(null)}
                 onDragOver={(event) => { if (draggedClipId && draggedClipId !== clip.id) event.preventDefault(); }}
                 onDrop={(event) => {
                   event.preventDefault();
@@ -274,25 +264,24 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                 style={{
                   position: "relative", minWidth: 84, flexBasis: 0, flexGrow: Math.max(clipDuration, totalDuration * 0.08),
                   borderRadius: "var(--radius-sm)", background: "var(--bg-chip)",
-                  outline: active ? "2px solid var(--tool-trim-strong)" : "1px solid var(--image-outline)",
-                  outlineOffset: active ? -2 : -1, opacity: draggedClipId === clip.id ? 0.45 : 1,
+                  boxShadow: active ? "inset 0 0 0 2px var(--tool-trim-strong)" : "inset 0 0 0 1px var(--tool-trim)",
+                  opacity: draggedClipId === clip.id ? 0.45 : 1,
                   transform: draggedClipId === clip.id ? "scale(0.98)" : "scale(1)",
                   transition: "transform 150ms ease-out, opacity 150ms ease-out", overflow: "visible",
                 }}
               >
-                <button
-                  type="button"
-                  aria-label={`${clip.file.name}, clip ${index + 1} of ${clips.length}`}
-                  aria-pressed={active}
+                <div
+                  role="slider"
+                  tabIndex={0}
+                  aria-label={`${clip.file.name}, video ${index + 1} of ${clips.length}`}
+                  aria-valuemin={viewStart}
+                  aria-valuemax={viewEnd}
+                  aria-valuenow={active ? timelineTime : clip.edit.trimStart}
+                  aria-valuetext={formatTime(active ? timelineTime : clip.edit.trimStart)}
                   title={`${clip.file.name} · ${formatTime(clipDuration)}`}
                   onClick={() => { if (!active) selectClip(clip.id); }}
                   onPointerDown={(event) => { if (active && !trimEditing) beginInteraction("scrub", event); }}
                   onKeyDown={(event) => {
-                    if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
-                      event.preventDefault();
-                      reorderClip(clip.id, event.key === "ArrowLeft" ? -1 : 1);
-                      return;
-                    }
                     if (!active) return;
                     let nextTime = timelineTime;
                     if (event.key === "Home") nextTime = viewStart;
@@ -304,13 +293,42 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                     if (isPlaying) togglePlay();
                     seek(Math.min(viewEnd, Math.max(viewStart, nextTime)));
                   }}
-                  style={{ position: "absolute", inset: 0, width: "100%", padding: 0, border: 0, borderRadius: "inherit", overflow: "hidden", background: "transparent", cursor: trimEditing && active ? "default" : "pointer" }}
+                  style={{ position: "absolute", inset: 0, width: "100%", borderRadius: "inherit", overflow: "hidden", cursor: trimEditing && active ? "default" : "pointer" }}
                 >
                   <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg-chip)" }} />
                   {clip.duration > 0 && <Filmstrip videoUrl={clip.url} rangeStart={viewStart} rangeEnd={viewEnd} crop={clip.edit.crop} naturalAspect={clip.naturalAspect} filter={colorFilterCss(clip.edit.color)} />}
-                  <span aria-hidden="true" style={{ position: "absolute", left: 5, top: 5, display: "flex", alignItems: "center", gap: 3, padding: "2px 5px", borderRadius: 4, background: "rgba(12,18,32,0.72)", color: "#fff", fontSize: 9.5, fontVariantNumeric: "tabular-nums" }}>
-                    <IconGripVertical size={10} /> {index + 1}
+                  <span aria-hidden="true" style={{ position: "absolute", insetBlock: 0, left: 0, width: 3, background: "var(--tool-trim-strong)", opacity: active ? 1 : 0.72 }} />
+                  <span aria-hidden="true" style={{ position: "absolute", insetBlock: 0, right: 0, width: 3, background: "var(--tool-trim-strong)", opacity: active ? 1 : 0.72 }} />
+                  <span aria-hidden="true" className="tabular-nums" style={{ position: "absolute", right: 6, bottom: 5, padding: "2px 5px", borderRadius: 4, background: "rgba(12,18,32,0.72)", color: "#fff", fontSize: 9.5 }}>
+                    {formatTime(clipDuration)}
                   </span>
+                </div>
+
+                <button
+                  type="button"
+                  className="timeline-clip-handle"
+                  aria-label={`Drag video ${index + 1} to reorder`}
+                  title="Drag to reorder"
+                  draggable={!trimEditing}
+                  onClick={() => selectClip(clip.id)}
+                  onPointerDown={(event) => event.stopPropagation()}
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    setDraggedClipId(clip.id);
+                    event.dataTransfer.effectAllowed = "move";
+                    event.dataTransfer.setData("text/plain", clip.id);
+                  }}
+                  onDragEnd={() => setDraggedClipId(null)}
+                  onKeyDown={(event) => {
+                    if (event.altKey && (event.key === "ArrowLeft" || event.key === "ArrowRight")) {
+                      event.preventDefault();
+                      reorderClip(clip.id, event.key === "ArrowLeft" ? -1 : 1);
+                    }
+                  }}
+                  style={{ position: "absolute", left: 3, top: 0, zIndex: 3 }}
+                >
+                  <IconGripVertical size={11} aria-hidden="true" />
+                  <span className="tabular-nums">{index + 1}</span>
                 </button>
 
                 {active && trimEditing && (

@@ -326,7 +326,10 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
         }}
       >
         {/* the video's rounded corners are clipped in this inner wrapper instead */}
-        <div style={{ position: "absolute", inset: 0, borderRadius: "var(--radius-md)", overflow: "hidden", outline: "1px solid var(--image-outline)", outlineOffset: -1 }}>
+        <div style={{
+          position: "absolute", inset: 0, borderRadius: "var(--radius-md)", overflow: "hidden",
+          outline: "1px solid var(--image-outline)", outlineOffset: -1,
+        }}>
           <video
             ref={videoRef}
             src={editor.videoUrl ?? undefined}
@@ -349,6 +352,14 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
             }}
           />
           <div style={{ position: "absolute", inset: 0, pointerEvents: "none", ...temperatureOverlayStyle(edit.color.temperature) }} />
+          <div
+            aria-hidden="true"
+            style={{
+              position: "absolute", inset: 0, pointerEvents: "none", background: "#000",
+              opacity: 1 - editor.transitionOpacity,
+              willChange: isPlaying && editor.transitionOpacity < 1 ? "opacity" : undefined,
+            }}
+          />
         </div>
 
         {cropEditing && naturalAspect && (

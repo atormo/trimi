@@ -99,7 +99,9 @@ button:focus-visible,
 }
 
 .add-video-button,
-.clip-icon-button {
+.clip-icon-button,
+.clip-card-select,
+.clip-transition-button {
   transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
@@ -111,8 +113,96 @@ button:focus-visible,
 }
 
 .add-video-button:active,
-.clip-icon-button:not(:disabled):active {
+.clip-icon-button:not(:disabled):active,
+.clip-card-select:active,
+.clip-transition-button:active {
   transform: scale(0.96);
+}
+
+.add-video-button {
+  margin-top: 12px;
+}
+
+.clip-card {
+  min-height: 48px;
+  padding: 4px;
+  border-radius: var(--radius-lg);
+  background: var(--bg-chip);
+  box-shadow: var(--control-shadow);
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  transition: box-shadow 150ms ease-out;
+}
+
+.clip-card[data-active="true"] {
+  box-shadow: 0 0 0 2px var(--brand-blue), var(--control-shadow);
+}
+
+.clip-card-select {
+  min-width: 0;
+  min-height: 40px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-1);
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
+}
+
+.clip-card-select:hover,
+.clip-card-select:focus-visible {
+  background: var(--bg-chip-hover);
+}
+
+.clip-transition-row {
+  position: relative;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.clip-transition-row::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  left: 50%;
+  width: 1px;
+  background: var(--border-strong);
+  transform: translateX(-50%);
+}
+
+.clip-transition-button {
+  position: relative;
+  min-width: 72px;
+  height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--bg-panel-solid);
+  color: var(--text-3);
+  box-shadow: var(--control-shadow);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.clip-transition-button:hover,
+.clip-transition-button:focus-visible {
+  background: var(--bg-chip-hover);
+  color: var(--text-1);
+}
+
+.clip-transition-button[data-active="true"] {
+  background: var(--brand-blue);
+  color: var(--ink-solid);
 }
 
 .clip-icon-button {
@@ -144,6 +234,34 @@ button:focus-visible,
 .timeline-scroll {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
+}
+
+.timeline-clip-handle {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 0 0 var(--radius-sm) 0;
+  background: rgba(12, 18, 32, 0.76);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  cursor: grab;
+  font-size: 10px;
+  font-weight: 600;
+  transition: transform 150ms ease-out, background-color 150ms ease-out;
+}
+
+.timeline-clip-handle:hover,
+.timeline-clip-handle:focus-visible {
+  background: rgba(12, 18, 32, 0.92);
+}
+
+.timeline-clip-handle:active {
+  cursor: grabbing;
+  transform: scale(0.96);
 }
 
 @keyframes trimi-spin {
@@ -229,7 +347,14 @@ button:focus-visible,
   .unlink-device-button,
   .add-video-button,
   .clip-icon-button,
+  .clip-card,
+  .clip-card-select,
+  .clip-transition-button,
   .timeline-clip {
+    transition: none;
+  }
+
+  .timeline-clip-handle {
     transition: none;
   }
 }

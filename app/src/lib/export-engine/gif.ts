@@ -1,13 +1,13 @@
 import { ALL_FORMATS, BlobSource, Input, VideoSampleSink, type InputVideoTrack } from "mediabunny";
 import { GIFEncoder, applyPalette, quantize } from "gifenc";
-import type { EditState } from "../../types";
+import { FADE_EDGE_SECONDS, type EditState } from "../../types";
 import { GIF_COLORS_BY_QUALITY, GIF_FPS_BY_QUALITY, type ExportQuality, type ExportScale } from "../export";
-import { colorFilterCss, paintTemperatureOverlay } from "./color";
+import { colorFilterCss, paintFadeToBlack, paintTemperatureOverlay } from "./color";
 import { computeFramePlan, type FramePlan } from "./frame";
 import { ExportCanceledError } from "./errors";
 
 export interface ExportGifOptions {
-  clips: Array<{ file: File; edit: EditState }>;
+  clips: Array<{ file: File; edit: EditState; transitionIn: "fade" | null }>;
   scale: ExportScale;
   quality: ExportQuality;
   filename: string;
@@ -17,7 +17,7 @@ export interface ExportGifOptions {
 
 export async function exportGif({ clips, scale, quality, filename, onProgress, signal }: ExportGifOptions): Promise<{ blob: Blob; filename: string }> {
   if (!clips.length) throw new Error("Add at least one clip before exporting.");
-  const sources: Array<{ input: Input; videoTrack: InputVideoTrack; plan: FramePlan; edit: EditState }> = [];
+  const sources: Array<{ input: Input; videoTrack: InputVideoTrack; plan: FramePlan; edit: EditState; transitionIn: "fade" | null }> = [];
 
   try {
     for (const clip of clips) {
@@ -27,7 +27,7 @@ export async function exportGif({ clips, scale, quality, filename, onProgress, s
         input.dispose();
         throw new Error(`This browser can't decode ${clip.file.name}.`);
       }
-      sources.push({ input, videoTrack, plan: await computeFramePlan(videoTrack, clip.edit.crop, scale, "gif"), edit: clip.edit });
+      sources.push({ input, videoTrack, plan: await computeFramePlan(videoTrack, clip.edit.crop, scale, "gif"), edit: clip.edit, transitionIn: clip.transitionIn });
     }
 
     const outSize = sources[0].plan.outSize;
@@ -80,6 +80,13 @@ export async function exportGif({ clips, scale, quality, filename, onProgress, s
         sample.draw(context, source.plan.cropPx.left, source.plan.cropPx.top, source.plan.cropPx.width, source.plan.cropPx.height, drawX, drawY, drawWidth, drawHeight);
         context.filter = "none";
         paintTemperatureOverlay(context, outSize.width, outSize.height, source.edit.color.temperature);
+        const outputDuration = framePlan.frameCount / fps;
+        const fadeEdge = Math.min(FADE_EDGE_SECONDS, outputDuration / 2);
+        const fadeInAlpha = source.transitionIn === "fade" && fadeEdge > 0 ? 1 - Math.min(1, outputTimestamp / fadeEdge) : 0;
+        const fadeOutAlpha = sources[sourceIndex + 1]?.transitionIn === "fade" && fadeEdge > 0
+          ? 1 - Math.min(1, Math.max(0, outputDuration - outputTimestamp) / fadeEdge)
+          : 0;
+        paintFadeToBlack(context, outSize.width, outSize.height, Math.max(fadeInAlpha, fadeOutAlpha));
         sample.close();
 
         const { data } = context.getImageData(0, 0, outSize.width, outSize.height);

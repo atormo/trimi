@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FULL_CROP,
+  FADE_EDGE_SECONDS,
   MIN_CROP_SIZE,
   centeredCropForRatio,
   defaultEditState,
@@ -21,6 +22,7 @@ const makeClip = (file: File): VideoClip => ({
   sourceSize: null,
   edit: defaultEditState(0),
   trimView: { start: 0, end: 0 },
+  transitionIn: null,
 });
 
 export function useVideoEditor() {
@@ -137,6 +139,7 @@ export function useVideoEditor() {
     if (index < 0 || current.length <= 1) return;
     URL.revokeObjectURL(current[index].url);
     const remaining = current.filter((clip) => clip.id !== id);
+    if (remaining[0]) remaining[0] = { ...remaining[0], transitionIn: null };
     setClips(remaining);
     if (activeClipIdRef.current === id) {
       const next = remaining[Math.min(index, remaining.length - 1)];
@@ -155,6 +158,7 @@ export function useVideoEditor() {
       const next = [...current];
       const [source] = next.splice(sourceIndex, 1);
       next.splice(targetIndex, 0, source);
+      next[0] = { ...next[0], transitionIn: null };
       return next;
     });
   }, []);
@@ -166,9 +170,16 @@ export function useVideoEditor() {
       if (index < 0 || target < 0 || target >= current.length) return current;
       const next = [...current];
       [next[index], next[target]] = [next[target], next[index]];
+      next[0] = { ...next[0], transitionIn: null };
       return next;
     });
   }, []);
+
+  const toggleFade = useCallback((clipId: string) => {
+    const index = clipsRef.current.findIndex((clip) => clip.id === clipId);
+    if (index <= 0) return;
+    updateClip(clipId, (clip) => ({ ...clip, transitionIn: clip.transitionIn === "fade" ? null : "fade" }));
+  }, [updateClip]);
 
   const onLoadedMetadata = useCallback(() => {
     const video = videoRef.current;
@@ -425,16 +436,27 @@ export function useVideoEditor() {
   const resetColor = useCallback(() => setColor({ exposure: 0, contrast: 1, saturation: 1, temperature: 0 }), [setColor]);
 
   const totalDuration = clips.reduce((sum, clip) => sum + Math.max(0, clip.edit.trimEnd - clip.edit.trimStart) / Math.max(clip.edit.speed, 0.01), 0);
+  const activeIndex = activeClip ? clips.findIndex((clip) => clip.id === activeClip.id) : -1;
+  const activeOutputDuration = Math.max(0, edit.trimEnd - edit.trimStart) / Math.max(edit.speed, 0.01);
+  const activeOutputTime = Math.max(0, currentTime - edit.trimStart) / Math.max(edit.speed, 0.01);
+  const fadeEdge = Math.min(FADE_EDGE_SECONDS, activeOutputDuration / 2);
+  const fadeInOpacity = activeClip?.transitionIn === "fade" && fadeEdge > 0
+    ? Math.min(1, activeOutputTime / fadeEdge)
+    : 1;
+  const fadeOutOpacity = activeIndex >= 0 && activeIndex < clips.length - 1 && clips[activeIndex + 1].transitionIn === "fade" && fadeEdge > 0
+    ? Math.min(1, Math.max(0, activeOutputDuration - activeOutputTime) / fadeEdge)
+    : 1;
+  const transitionOpacity = isPlaying ? Math.min(fadeInOpacity, fadeOutOpacity) : 1;
 
   return {
-    videoRef, clips, activeClip, activeClipId, totalDuration,
+    videoRef, clips, activeClip, activeClipId, totalDuration, transitionOpacity,
     file: activeClip?.file ?? null, videoUrl: activeClip?.url ?? null,
     duration, currentTime, isPlaying, edit,
     naturalAspect: activeClip?.naturalAspect ?? null,
     sourceSize: activeClip?.sourceSize ?? null,
     trimView, cropEditing, cropEditStart, cropPresetLabel,
     trimEditing, trimEditStart, cutPending,
-    loadFile, addFile, clearFile, removeClip, selectClip, moveClip, reorderClip,
+    loadFile, addFile, clearFile, removeClip, selectClip, moveClip, reorderClip, toggleFade,
     onLoadedMetadata, onTimeUpdate, togglePlay, seek, previewFrame, commitPreviewFrame, onSeeked,
     setTrim, commitTrim, resetTrim, startTrimEdit, cancelTrimEdit,
     setSpeed, setPreservesPitch, setMuted, setCrop, setCropPreset,

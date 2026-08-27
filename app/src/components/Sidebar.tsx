@@ -121,8 +121,8 @@ function OptionGrid<T extends string>({
 
 export function Sidebar({ editor }: { editor: VideoEditor }) {
   const {
-    file, edit, trimView, duration, naturalAspect, clips, activeClip, activeClipId, totalDuration,
-    addFile, removeClip, reorderClip,
+    file, edit, trimView, duration, naturalAspect, clips, activeClipId, totalDuration,
+    addFile, removeClip, reorderClip, selectClip, toggleFade,
     commitTrim, resetTrim, trimEditing, cutPending, startTrimEdit, cancelTrimEdit,
     cropEditing, cropEditStart, cropPresetLabel, startCropEdit, applyCrop, cancelCropEdit, setCropPreset,
     setSpeed, setPreservesPitch, setMuted, setColor, resetColor,
@@ -175,7 +175,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
     try {
       const exportFn = format === "gif" ? mod.exportGif : mod.exportMp4;
       const { blob, filename: outName } = await exportFn({
-        clips: clips.map((clip) => ({ file: clip.file, edit: clip.edit })),
+        clips: clips.map((clip) => ({ file: clip.file, edit: clip.edit, transitionIn: clip.transitionIn })),
         scale,
         quality,
         filename: filename || "trimi-export",
@@ -266,22 +266,43 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
       <div style={{ display: "flex", flexDirection: "column", gap: 22, padding: "8px 18px 18px", overflowY: "auto" }}>
         {tab === "edit" ? (
           <>
-            <Section title="Clips" icon={<IconVideo size={14} stroke={2} color="var(--brand-blue)" />}>
-              <div style={{ padding: "10px 11px", borderRadius: "var(--radius-sm)", background: "var(--bg-chip)", display: "flex", alignItems: "center", gap: 9 }}>
-                <div style={{ minWidth: 0, flex: 1 }}>
-                  <div title={file?.name} style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file?.name}</div>
-                  <div className="tabular-nums" style={{ marginTop: 2, fontSize: 10.5, color: "var(--text-3)" }}>
-                    Clip {Math.max(1, clips.findIndex((clip) => clip.id === activeClipId) + 1)} of {clips.length}
+            <div role="group" aria-label="Video sequence" style={{ display: "flex", flexDirection: "column" }}>
+              {clips.map((clip, index) => (
+                <div key={clip.id}>
+                  {index > 0 && (
+                    <div className="clip-transition-row">
+                      <button
+                        type="button"
+                        className="clip-transition-button"
+                        aria-label={`Fade into ${clip.file.name}`}
+                        aria-pressed={clip.transitionIn === "fade"}
+                        data-active={clip.transitionIn === "fade"}
+                        onClick={() => toggleFade(clip.id)}
+                      >
+                        Fade
+                      </button>
+                    </div>
+                  )}
+                  <div className="clip-card" data-active={clip.id === activeClipId}>
+                    <button
+                      type="button"
+                      className="clip-card-select"
+                      aria-pressed={clip.id === activeClipId}
+                      onClick={() => selectClip(clip.id)}
+                    >
+                      <span title={clip.file.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>{clip.file.name}</span>
+                      <span className="tabular-nums" style={{ fontSize: 10.5, color: "var(--text-3)" }}>
+                        {formatTime(Math.max(0, clip.edit.trimEnd - clip.edit.trimStart) / Math.max(clip.edit.speed, 0.01))}
+                      </span>
+                    </button>
+                    <div style={{ display: "flex", gap: 2 }}>
+                      <button type="button" className="clip-icon-button" aria-label={`Move ${clip.file.name} left`} title="Move left" disabled={index === 0} onClick={() => reorderClip(clip.id, -1)}><IconArrowLeft size={14} aria-hidden="true" /></button>
+                      <button type="button" className="clip-icon-button" aria-label={`Move ${clip.file.name} right`} title="Move right" disabled={index === clips.length - 1} onClick={() => reorderClip(clip.id, 1)}><IconArrowRight size={14} aria-hidden="true" /></button>
+                      <button type="button" className="clip-icon-button clip-remove-button" aria-label={`Remove ${clip.file.name}`} title="Remove" disabled={clips.length === 1} onClick={() => removeClip(clip.id)}><IconTrash size={14} aria-hidden="true" /></button>
+                    </div>
                   </div>
                 </div>
-                {clips.length > 1 && activeClip && (
-                  <div style={{ display: "flex", gap: 2 }}>
-                    <button type="button" className="clip-icon-button" aria-label="Move clip left" title="Move clip left" disabled={clips[0]?.id === activeClip.id} onClick={() => reorderClip(activeClip.id, -1)}><IconArrowLeft size={14} /></button>
-                    <button type="button" className="clip-icon-button" aria-label="Move clip right" title="Move clip right" disabled={clips.at(-1)?.id === activeClip.id} onClick={() => reorderClip(activeClip.id, 1)}><IconArrowRight size={14} /></button>
-                    <button type="button" className="clip-icon-button clip-remove-button" aria-label="Remove selected clip" title="Remove selected clip" onClick={() => removeClip(activeClip.id)}><IconTrash size={14} /></button>
-                  </div>
-                )}
-              </div>
+              ))}
               <input
                 ref={addVideoInputRef}
                 type="file"
@@ -298,7 +319,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                 <IconPlus size={15} stroke={2.2} aria-hidden="true" />
                 Add another video
               </button>
-            </Section>
+            </div>
 
             <Section title="Trim" icon={<IconScissors size={14} stroke={2} color="var(--tool-trim)" />}>
               {trimEditing ? (
