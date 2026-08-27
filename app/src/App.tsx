@@ -10,9 +10,12 @@ import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
 import { ActivationGate } from "./components/ActivationGate";
 
+const SAMPLE_VIDEO_URL = "/sample-wolf.mp4";
+const SAMPLE_VIDEO_NAME = "Wolf sample.mp4";
+
 function App() {
   const editor = useVideoEditor();
-  const { clearClipSelection } = editor;
+  const { clearClipSelection, loadFile } = editor;
   const { theme, toggle } = useTheme();
   const license = useLicense();
   const { retry: retryLicenseCheck } = license;
@@ -20,6 +23,27 @@ function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [licensePromptOpen, setLicensePromptOpen] = useState(false);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const sampleReplacedRef = useRef(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    fetch(SAMPLE_VIDEO_URL, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Sample video request failed with ${response.status}`);
+        return response.blob();
+      })
+      .then((blob) => {
+        if (sampleReplacedRef.current) return;
+        loadFile(new File([blob], SAMPLE_VIDEO_NAME, { type: "video/mp4" }));
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        console.error("Couldn't load the sample video.", error);
+      });
+
+    return () => controller.abort();
+  }, [loadFile]);
 
   useEffect(() => {
     if (!hasVideo) return;
@@ -177,6 +201,7 @@ function App() {
         onChange={(event) => {
           const nextFile = event.target.files?.[0];
           if (nextFile) {
+            sampleReplacedRef.current = true;
             if (editor.clips.length) editor.addFile(nextFile);
             else editor.loadFile(nextFile);
           }
