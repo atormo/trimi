@@ -97,10 +97,18 @@ export function Checkbox({ checked, onChange, label, color = "var(--text-1)" }: 
 }) {
   return (
     <label
-      onClick={() => onChange(!checked)}
-      style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
+      style={{ position: "relative", minHeight: 40, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", userSelect: "none" }}
     >
+      <input
+        type="checkbox"
+        className="trimi-checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.currentTarget.checked)}
+        style={{ position: "absolute", opacity: 0, pointerEvents: "none" }}
+      />
       <span
+        className="trimi-checkbox-box"
+        aria-hidden="true"
         style={{
           width: 16, height: 16, borderRadius: 4, flexShrink: 0,
           border: `1px solid ${checked ? color : "var(--border-strong)"}`,

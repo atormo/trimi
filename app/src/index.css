@@ -98,6 +98,11 @@ button:focus-visible,
   outline-offset: 2px;
 }
 
+.trimi-checkbox:focus-visible + .trimi-checkbox-box {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
+}
+
 .add-video-button,
 .clip-icon-button,
 .clip-card-select {
@@ -308,7 +313,8 @@ button:focus-visible,
   color: var(--text-3);
   display: flex;
   align-items: center;
-  gap: 4px;
+  flex-shrink: 0;
+  gap: 3px;
   font-size: 10px;
   line-height: 1.3;
   text-wrap: pretty;

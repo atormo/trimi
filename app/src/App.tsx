@@ -10,7 +10,7 @@ import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
 import { ActivationGate } from "./components/ActivationGate";
 
-const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p";
+const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p-audio";
 const SAMPLE_VIDEO_NAME = "wolfsample.mp4";
 const SAMPLE_VIDEO_SOURCE_URL = "https://www.pexels.com/video/wolf-looking-around-15178051/";
 
@@ -110,15 +110,15 @@ function App() {
                 <span className="tabular-nums" style={{ flexShrink: 0, fontSize: 12, color: "var(--text-3)" }}>
                   {editor.clips.length > 1 ? `${editor.clips.length} clips · ` : ""}{formatDuration(editor.totalDuration)}
                 </span>
+                {isSampleSelected && (
+                  <div className="sample-video-credit">
+                    <span>Video by</span>
+                    <a className="sample-video-link" href={SAMPLE_VIDEO_SOURCE_URL} target="_blank" rel="noreferrer">
+                      Nicky Pe
+                    </a>
+                  </div>
+                )}
               </div>
-              {isSampleSelected && (
-                <div className="sample-video-credit">
-                  <span>Video by</span>
-                  <a className="sample-video-link" href={SAMPLE_VIDEO_SOURCE_URL} target="_blank" rel="noreferrer">
-                    Nicky Pe
-                  </a>
-                </div>
-              )}
             </>
           )}
         </div>
