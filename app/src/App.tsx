@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconLoader2, IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
+import { IconCheck, IconKey, IconLoader2, IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
 import { useVideoEditor } from "./hooks/useVideoEditor";
@@ -24,7 +24,10 @@ function App() {
   const isSampleSelected = editor.file?.name === SAMPLE_VIDEO_NAME;
   const [accountOpen, setAccountOpen] = useState(false);
   const [licensePromptOpen, setLicensePromptOpen] = useState(false);
+  const [licenseEntryRequested, setLicenseEntryRequested] = useState(false);
+  const [licenseUnlinked, setLicenseUnlinked] = useState(false);
   const [sampleLoadState, setSampleLoadState] = useState<"idle" | "loading" | "error">("idle");
+  const accountButtonRef = useRef<HTMLButtonElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const sampleBlobPromiseRef = useRef<Promise<Blob> | null>(null);
   const sampleLoadRequestRef = useRef(0);
@@ -72,25 +75,35 @@ function App() {
     return () => document.removeEventListener("pointerdown", clearSelectionOutsideClips);
   }, [clearClipSelection, hasVideo]);
 
-  useEffect(() => {
-    if (license.state.status !== "unlocked") setAccountOpen(false);
-  }, [license.state.status]);
-
   const requestVideoUpload = () => {
     if (license.state.status === "checking") return;
     if (license.state.status === "unlocked") {
       videoInputRef.current?.click();
       return;
     }
+    setLicenseEntryRequested(false);
     setLicensePromptOpen(true);
   };
 
-  const closeLicensePrompt = useCallback(() => setLicensePromptOpen(false), []);
+  const closeLicensePrompt = useCallback(() => {
+    const restoreAccountFocus = licenseEntryRequested;
+    setLicensePromptOpen(false);
+    setLicenseEntryRequested(false);
+    if (restoreAccountFocus) requestAnimationFrame(() => accountButtonRef.current?.focus());
+  }, [licenseEntryRequested]);
 
   const retryLicense = useCallback(() => {
     setLicensePromptOpen(false);
+    setLicenseEntryRequested(false);
     retryLicenseCheck();
   }, [retryLicenseCheck]);
+
+  const openLicenseEntry = useCallback(() => {
+    setAccountOpen(false);
+    setLicenseUnlinked(false);
+    setLicenseEntryRequested(true);
+    setLicensePromptOpen(true);
+  }, []);
 
   const logo = (
     <img
@@ -157,9 +170,18 @@ function App() {
             </div>
           )}
           {license.state.status === "offline" && (
-            <button type="button" className="license-header-status license-header-action" onClick={() => setLicensePromptOpen(true)}>
+            <button type="button" className="license-header-status license-header-action" onClick={() => {
+              setLicenseEntryRequested(false);
+              setLicensePromptOpen(true);
+            }}>
               License offline
             </button>
+          )}
+          {license.state.status === "locked" && licenseUnlinked && (
+            <div className="license-header-status license-unlinked-status" role="status" aria-live="polite">
+              <IconCheck size={14} stroke={2.2} aria-hidden="true" />
+              License unlinked
+            </div>
           )}
           <button
             onClick={toggle}
@@ -175,56 +197,87 @@ function App() {
           </button>
           <div
             style={{ position: "relative" }}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && accountOpen) {
+                event.preventDefault();
+                setAccountOpen(false);
+              }
+            }}
             onBlur={(event) => {
               if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false);
             }}
           >
             <button
+              ref={accountButtonRef}
               type="button"
               title="Account"
               aria-label="Account"
               aria-expanded={accountOpen}
-              disabled={license.state.status !== "unlocked"}
+              aria-controls={accountOpen ? "account-popover" : undefined}
               onClick={() => setAccountOpen((open) => !open)}
-              style={{
-                width: 30, height: 30, padding: 0, border: "none", background: "transparent",
-                color: "var(--text-2)", display: "flex", alignItems: "center", justifyContent: "center",
-                cursor: license.state.status === "unlocked" ? "pointer" : "default",
-              }}
+              className="account-avatar-button"
             >
-              <IconUserCircle size={24} stroke={1.75} />
+              <IconUserCircle size={24} stroke={1.75} aria-hidden="true" />
             </button>
-            {accountOpen && license.state.status === "unlocked" && (
-              <div style={{
-                position: "absolute", top: 38, right: 0, zIndex: 3, width: 220,
-                borderRadius: "var(--radius-md)", background: "var(--bg-panel-solid)",
-                boxShadow: "var(--island-shadow)", padding: 12,
-                display: "flex", flexDirection: "column", gap: 10,
-              }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>Licensed</div>
-                  <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                    Key ending {license.state.key.slice(-4)}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  disabled={license.unlinking}
-                  onClick={() => {
-                    setAccountOpen(false);
-                    license.unlink();
-                  }}
-                  className="unlink-device-button"
-                  style={{
-                    height: 40, borderRadius: "var(--radius-sm)", border: "none",
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                    fontSize: 12, fontWeight: 500, cursor: license.unlinking ? "not-allowed" : "pointer",
-                    opacity: license.unlinking ? 0.6 : 1,
-                  }}
-                >
-                  <IconLogout size={13} stroke={2} />
-                  {license.unlinking ? "Unlinking…" : "Unlink this device"}
-                </button>
+            {accountOpen && (
+              <div
+                id="account-popover"
+                role="region"
+                aria-label="Account"
+                style={{
+                  position: "absolute", top: 42, right: 0, zIndex: 3, width: 220,
+                  borderRadius: "var(--radius-md)", background: "var(--bg-panel-solid)",
+                  boxShadow: "var(--island-shadow)", padding: 12,
+                  display: "flex", flexDirection: "column", gap: 10,
+                }}
+              >
+                {license.state.status === "unlocked" ? (
+                  <>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>Licensed</div>
+                      <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
+                        Key ending {license.state.key.slice(-4)}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={license.unlinking}
+                      onClick={async () => {
+                        await license.unlink();
+                        setLicenseUnlinked(true);
+                      }}
+                      className="unlink-device-button"
+                      style={{
+                        height: 40, borderRadius: "var(--radius-sm)", border: "none",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        fontSize: 12, fontWeight: 500, cursor: license.unlinking ? "not-allowed" : "pointer",
+                        opacity: license.unlinking ? 0.6 : 1,
+                      }}
+                    >
+                      <IconLogout size={13} stroke={2} aria-hidden="true" />
+                      {license.unlinking ? "Unlinking…" : "Unlink this device"}
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {license.state.status === "checking" && (
+                      <div className="account-license-status" role="status">
+                        <IconLoader2 size={14} stroke={2} className="trimi-spin" aria-hidden="true" />
+                        Checking license
+                      </div>
+                    )}
+                    {license.state.status === "offline" && (
+                      <div className="account-license-status">License offline</div>
+                    )}
+                    {license.state.status === "locked" && (
+                      <div className="account-license-status">No license added</div>
+                    )}
+                    <button type="button" className="account-license-button" onClick={openLicenseEntry}>
+                      <IconKey size={14} stroke={2} aria-hidden="true" />
+                      Add license
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -269,7 +322,7 @@ function App() {
 
       {licensePromptOpen && (
         <ActivationGate
-          mode={license.state.status}
+          mode={licenseEntryRequested && license.state.status !== "unlocked" ? "locked" : license.state.status}
           onActivate={license.activate}
           activating={license.activating}
           error={license.activateError}

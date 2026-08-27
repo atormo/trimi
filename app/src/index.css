@@ -309,6 +309,77 @@ button:focus-visible,
   color: var(--text-1);
 }
 
+.license-unlinked-status {
+  color: var(--text-2);
+}
+
+.license-unlinked-status svg {
+  color: var(--tool-speed);
+}
+
+.account-avatar-button {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.account-avatar-button:hover,
+.account-avatar-button:focus-visible,
+.account-avatar-button[aria-expanded="true"] {
+  background: var(--bg-chip-hover);
+  color: var(--text-1);
+}
+
+.account-avatar-button:active,
+.account-license-button:active,
+.unlink-device-button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.account-license-status {
+  min-height: 24px;
+  padding: 0 4px;
+  color: var(--text-3);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  text-wrap: pretty;
+}
+
+.account-license-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-chip);
+  color: var(--text-1);
+  box-shadow: var(--control-shadow);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  transition: transform 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.account-license-button:hover,
+.account-license-button:focus-visible {
+  background: var(--bg-chip-hover);
+}
+
 .try-sample-group {
   display: flex;
   align-items: center;
@@ -430,7 +501,7 @@ button:focus-visible,
   background: var(--bg-chip);
   color: var(--text-2);
   box-shadow: none;
-  transition: background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
+  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
 .unlink-device-button:not(:disabled):hover,
@@ -462,6 +533,8 @@ button:focus-visible,
   }
 
   .license-header-action,
+  .account-avatar-button,
+  .account-license-button,
   .try-sample-button,
   .sample-video-link,
   .license-dialog-close,
