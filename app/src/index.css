@@ -104,7 +104,7 @@ button:focus-visible,
   transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
-.add-video-button:hover,
+.add-video-button:not(:disabled):hover,
 .add-video-button:focus-visible,
 .clip-icon-button:not(:disabled):hover,
 .clip-icon-button:not(:disabled):focus-visible {
@@ -119,6 +119,10 @@ button:focus-visible,
 
 .add-video-button {
   margin-top: 12px;
+}
+
+.add-video-button:disabled {
+  cursor: wait;
 }
 
 .clip-list {
@@ -256,28 +260,59 @@ button:focus-visible,
   transition-duration: 120ms;
 }
 
-.new-video-menu {
-  opacity: 0;
-  transform: translateY(-4px) scale(0.97);
-  transform-origin: top left;
-  pointer-events: none;
+.license-header-status {
+  min-height: 40px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
-.new-video-menu[data-motion="true"] {
-  transition: opacity 160ms cubic-bezier(0.23, 1, 0.32, 1), transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+.license-header-action {
+  cursor: pointer;
+  transition: color 150ms ease-out;
 }
 
-.new-video-menu[data-open="true"] {
-  opacity: 1;
-  transform: translateY(0) scale(1);
-  pointer-events: auto;
+.license-header-action:hover,
+.license-header-action:focus-visible {
+  color: var(--text-1);
 }
 
-.new-video-menu button {
-  transition: transform 140ms cubic-bezier(0.23, 1, 0.32, 1);
+.license-dialog-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.new-video-menu button:active {
+.license-dialog-close,
+.license-dialog-action {
+  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
+}
+
+.license-dialog-close:hover,
+.license-dialog-close:focus-visible {
+  background: var(--bg-chip-hover);
+  color: var(--text-1);
+}
+
+.license-dialog-close:active,
+.license-dialog-action:not(:disabled):active {
   transform: scale(0.96);
 }
 
@@ -316,8 +351,9 @@ button:focus-visible,
     transition: none;
   }
 
-  .new-video-menu,
-  .new-video-menu button,
+  .license-header-action,
+  .license-dialog-close,
+  .license-dialog-action,
   .unlink-device-button,
   .add-video-button,
   .clip-icon-button,

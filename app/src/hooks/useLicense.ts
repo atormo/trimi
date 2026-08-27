@@ -50,8 +50,8 @@ export function useLicense() {
 
   // The app never unlocks on the strength of localStorage alone — that's attacker-controlled
   // (one line pasted into devtools sets any key/activationId it likes). Every boot needs a real,
-  // live "granted" response from Polar before rendering anything. A stored license that can't be
-  // verified right now shows a retry screen, not the editor — see TRIMI-PLAN.md §5.2.1.
+  // live "granted" response from Polar before allowing video imports. A stored license that can't
+  // be verified right now keeps imports locked and exposes a retry state in the editor header.
   const verify = useCallback((stored: StoredLicense) => {
     setState({ status: "checking" });
     validateLicense(stored.key, stored.activationId)

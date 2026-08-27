@@ -215,7 +215,22 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
     };
   }, [applyInteractionAt, commitPreviewFrame, drag]);
 
-  if (!clips.length || !activeClip) return null;
+  if (!clips.length || !activeClip) {
+    return (
+      <section aria-label="Video timeline" style={{
+        height: "100%", minHeight: 0, borderRadius: "var(--radius-lg)", background: "var(--bg-panel-solid)",
+        boxShadow: "var(--island-shadow)", padding: "12px 16px 16px", display: "flex", flexDirection: "column", gap: 9,
+      }}>
+        <div className="tabular-nums" style={{ fontSize: 12.5, color: "var(--text-3)" }}>
+          <span style={{ color: "var(--text-1)", fontWeight: 600 }}>0:00</span>
+          <span> / 0:00</span>
+        </div>
+        <div style={{ minHeight: 0, padding: "8px 0" }}>
+          <div style={{ height: 68, borderRadius: "var(--radius-sm)", background: "var(--bg-chip)", boxShadow: "inset 0 0 0 1px var(--image-outline)" }} />
+        </div>
+      </section>
+    );
+  }
 
   const timelineTime = scrubTime ?? currentTime;
   const elapsedBeforeActive = clips.slice(0, clips.findIndex((clip) => clip.id === activeClip.id)).reduce((sum, clip) => sum + outputDuration(clip), 0);

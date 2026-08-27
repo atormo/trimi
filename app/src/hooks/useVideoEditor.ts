@@ -145,7 +145,11 @@ export function useVideoEditor() {
   const removeClip = useCallback((id: string) => {
     const current = clipsRef.current;
     const index = current.findIndex((clip) => clip.id === id);
-    if (index < 0 || current.length <= 1) return;
+    if (index < 0) return;
+    if (current.length === 1) {
+      clearFile();
+      return;
+    }
     URL.revokeObjectURL(current[index].url);
     const remaining = current.filter((clip) => clip.id !== id);
     setClips(remaining);
@@ -158,7 +162,7 @@ export function useVideoEditor() {
     } else if (selectedClipId === id) {
       setSelectedClipId(null);
     }
-  }, [resetEditingModes, selectedClipId]);
+  }, [clearFile, resetEditingModes, selectedClipId]);
 
   const moveClip = useCallback((sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;

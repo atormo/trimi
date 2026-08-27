@@ -119,10 +119,18 @@ function OptionGrid<T extends string>({
   );
 }
 
-export function Sidebar({ editor }: { editor: VideoEditor }) {
+export function Sidebar({
+  editor,
+  onAddVideo,
+  addVideoDisabled = false,
+}: {
+  editor: VideoEditor;
+  onAddVideo: () => void;
+  addVideoDisabled?: boolean;
+}) {
   const {
     file, edit, trimView, duration, naturalAspect, clips, selectedClipId, totalDuration,
-    addFile, removeClip, moveClip, reorderClip, selectClip,
+    removeClip, moveClip, reorderClip, selectClip,
     togglePlay,
     commitTrim, resetTrim, trimEditing, cutPending, startTrimEdit, cancelTrimEdit,
     cropEditing, cropEditStart, cropPresetLabel, startCropEdit, applyCrop, cancelCropEdit, setCropPreset,
@@ -139,7 +147,6 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   const [exportProgress, setExportProgress] = useState(0);
   const [exportError, setExportError] = useState<string | null>(null);
   const exportAbortRef = useRef<AbortController | null>(null);
-  const addVideoInputRef = useRef<HTMLInputElement | null>(null);
   // mediabunny + the SoundTouch worklet are ~500KB — loaded on demand, only once the Export tab
   // is actually opened, so the common edit-only session never pays for them.
   const exportEngineRef = useRef<Promise<typeof import("../lib/export-engine")> | null>(null);
@@ -149,7 +156,12 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
   };
 
   useEffect(() => {
-    if (file && !filename) setFilename(file.name.replace(/\.[^.]+$/, "") + "-trimi");
+    if (!file) {
+      setFilename("");
+      setTab("edit");
+    } else if (!filename) {
+      setFilename(file.name.replace(/\.[^.]+$/, "") + "-trimi");
+    }
   }, [file, filename]);
 
   useEffect(() => {
@@ -257,11 +269,15 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
         {(["edit", "export"] as Tab[]).map((t) => (
           <button
             key={t}
+            type="button"
+            disabled={t === "export" && !file}
             onClick={() => setTab(t)}
             style={{
-              flex: 1, height: 28, position: "relative", zIndex: 1, borderRadius: "var(--radius-sm)", border: "none", cursor: "pointer",
+              flex: 1, height: 28, position: "relative", zIndex: 1, borderRadius: "var(--radius-sm)", border: "none",
+              cursor: t === "export" && !file ? "default" : "pointer",
               background: "transparent",
               color: tab === t ? "var(--text-1)" : "var(--text-3)",
+              opacity: t === "export" && !file ? 0.55 : 1,
               fontSize: 12.5, fontWeight: 500, textTransform: "capitalize",
               transition: "color .2s ease",
             }}
@@ -339,29 +355,19 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                         {formatTime(Math.max(0, clip.edit.trimEnd - clip.edit.trimStart) / Math.max(clip.edit.speed, 0.01))}
                       </span>
                     </button>
-                    <button type="button" draggable={false} className="clip-icon-button clip-remove-button" aria-label={`Remove ${clip.file.name}`} title="Remove" disabled={clips.length === 1} onClick={() => removeClip(clip.id)}><IconTrash size={14} aria-hidden="true" /></button>
+                    <button type="button" draggable={false} className="clip-icon-button clip-remove-button" aria-label={`Remove ${clip.file.name}`} title="Remove" onClick={() => removeClip(clip.id)}><IconTrash size={14} aria-hidden="true" /></button>
                   </li>
                 ))}
               </ol>
-              <input
-                ref={addVideoInputRef}
-                type="file"
-                accept="video/*,.mov,.m4v"
-                aria-label="Choose another video"
-                style={{ display: "none" }}
-                onChange={(event) => {
-                  const nextFile = event.target.files?.[0];
-                  if (nextFile) addFile(nextFile);
-                  event.currentTarget.value = "";
-                }}
-              />
-              <button type="button" className="add-video-button" onClick={() => addVideoInputRef.current?.click()} style={{ ...secondaryBtn, height: 40 }}>
+              <button type="button" className="add-video-button" disabled={addVideoDisabled} onClick={onAddVideo} style={{ ...secondaryBtn, height: 40, opacity: addVideoDisabled ? 0.55 : 1, cursor: addVideoDisabled ? "wait" : "pointer" }}>
                 <IconPlus size={15} stroke={2.2} aria-hidden="true" />
-                Add another video
+                {clips.length ? "Add another video" : "Add video"}
               </button>
               {clips.length > 1 && <div id="clip-reorder-hint" className="clip-reorder-hint">Drag these cards to reorder</div>}
             </div>
 
+            {clips.length > 0 && (
+              <>
             <Section title="Trim" icon={<IconScissors size={14} stroke={2} color="var(--tool-trim)" />}>
               {trimEditing ? (
                 <>
@@ -487,8 +493,10 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
               <Slider label="Saturation" value={edit.color.saturation} display={edit.color.saturation.toFixed(2)} min={0} max={2} step={0.05} onChange={(v) => setColor({ saturation: v })} color="var(--tool-color)" snapTo={1} />
               <Slider label="Temperature" value={edit.color.temperature} display={edit.color.temperature.toFixed(2)} min={-1} max={1} step={0.05} onChange={(v) => setColor({ temperature: v })} color="var(--tool-color)" snapTo={0} />
             </Section>
+              </>
+            )}
           </>
-        ) : (
+        ) : file ? (
           <>
             <Section title="File" icon={<IconFileText size={14} stroke={2} color="var(--text-2)" />}>
               <TextField value={filename} onChange={setFilename} placeholder="my-video" suffix={`.${format}`} />
@@ -619,7 +627,7 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
               </button>
             )}
           </>
-        )}
+        ) : null}
       </div>
     </div>
   );

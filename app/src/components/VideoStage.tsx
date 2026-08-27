@@ -305,9 +305,11 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
         padding: STAGE_PADDING,
       }}
     >
-      {/* boxRef never clips — the crop overlay's grab handles extend past the video's edges,
-          and clipping here would cut them off exactly when the crop is at full frame. */}
-      <div
+      {editor.videoUrl && (
+        <>
+        {/* boxRef never clips — the crop overlay's grab handles extend past the video's edges,
+            and clipping here would cut them off exactly when the crop is at full frame. */}
+        <div
         ref={boxRef}
         className="video-canvas-item"
         data-dragging="false"
@@ -357,10 +359,10 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
         {cropEditing && naturalAspect && (
           <CropOverlay crop={edit.crop} onChange={setCrop} boxRef={boxRef} color="var(--tool-crop)" />
         )}
-      </div>
+        </div>
 
-      {/* A movable playback island. Its position is updated with transform only while dragging. */}
-      <div
+        {/* A movable playback island. Its position is updated with transform only while dragging. */}
+        <div
         ref={transportRef}
         className="transport-island"
         data-dragging="false"
@@ -406,7 +408,9 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
         <button onClick={() => seek(edit.trimEnd)} aria-label="Go to end" title="Go to end" style={transportBtn}>
           <IconPlayerSkipForwardFilled size={13} />
         </button>
-      </div>
+        </div>
+        </>
+      )}
     </div>
   );
 }

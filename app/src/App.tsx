@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
-import { IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { IconLoader2, IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
 import { useVideoEditor } from "./hooks/useVideoEditor";
 import { useTheme } from "./hooks/useTheme";
 import { useLicense } from "./hooks/useLicense";
-import { DropZone } from "./components/DropZone";
 import { VideoStage } from "./components/VideoStage";
 import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
@@ -16,10 +15,11 @@ function App() {
   const { clearClipSelection } = editor;
   const { theme, toggle } = useTheme();
   const license = useLicense();
+  const { retry: retryLicenseCheck } = license;
   const hasVideo = Boolean(editor.videoUrl);
-  const [newVideoOpen, setNewVideoOpen] = useState(false);
-  const [newVideoMotion, setNewVideoMotion] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [licensePromptOpen, setLicensePromptOpen] = useState(false);
+  const videoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!hasVideo) return;
@@ -31,6 +31,31 @@ function App() {
     document.addEventListener("pointerdown", clearSelectionOutsideClips);
     return () => document.removeEventListener("pointerdown", clearSelectionOutsideClips);
   }, [clearClipSelection, hasVideo]);
+
+  useEffect(() => {
+    if (license.state.status !== "unlocked") setAccountOpen(false);
+  }, [license.state.status]);
+
+  const requestVideoUpload = () => {
+    if (license.state.status === "checking") return;
+    if (license.state.status === "unlocked") {
+      videoInputRef.current?.click();
+      return;
+    }
+    setLicensePromptOpen(true);
+  };
+
+  const closeLicensePrompt = useCallback(() => setLicensePromptOpen(false), []);
+
+  const retryLicense = useCallback(() => {
+    setLicensePromptOpen(false);
+    retryLicenseCheck();
+  }, [retryLicenseCheck]);
+
+  const continueToVideoUpload = useCallback(() => {
+    videoInputRef.current?.click();
+    setLicensePromptOpen(false);
+  }, []);
 
   const logo = (
     <img
@@ -48,61 +73,8 @@ function App() {
       <div style={{
         height: 60, minHeight: 60, display: "flex", alignItems: "center", padding: "0 16px",
       }}>
-        <div
-          onBlur={(event) => {
-            if (!event.currentTarget.contains(event.relatedTarget)) setNewVideoOpen(false);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              setNewVideoOpen(false);
-              (event.currentTarget.querySelector("button") as HTMLButtonElement | null)?.focus();
-            }
-          }}
-          style={{ width: 240, height: 40, display: "flex", alignItems: "center", position: "relative" }}
-        >
-          {hasVideo ? (
-            <button
-              type="button"
-              aria-label="Trimi menu"
-              aria-expanded={newVideoOpen}
-              aria-controls="new-video-menu"
-              onClick={(event) => {
-                setNewVideoMotion(event.detail > 0);
-                setNewVideoOpen((open) => !open);
-              }}
-              style={{ height: 40, padding: 0, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center" }}
-            >
-              {logo}
-            </button>
-          ) : logo}
-
-          {hasVideo && (
-            <div
-              id="new-video-menu"
-              className="new-video-menu"
-              data-open={newVideoOpen}
-              data-motion={newVideoMotion}
-              aria-hidden={!newVideoOpen}
-              style={{ position: "absolute", top: 42, left: 0, zIndex: 3 }}
-            >
-              <button
-                type="button"
-                tabIndex={newVideoOpen ? 0 : -1}
-                onClick={() => {
-                  setNewVideoOpen(false);
-                  editor.clearFile();
-                }}
-                style={{
-                  height: 40, padding: "0 14px", borderRadius: 999, border: "none",
-                  background: "var(--danger-solid)", color: "#ffffff",
-                  boxShadow: "var(--danger-action-shadow)",
-                  cursor: "pointer", whiteSpace: "nowrap", fontSize: 12.5, fontWeight: 650,
-                }}
-              >
-                Edit another video
-              </button>
-            </div>
-          )}
+        <div style={{ width: 240, height: 40, display: "flex", alignItems: "center" }}>
+          {logo}
         </div>
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
           {editor.file && (
@@ -115,6 +87,17 @@ function App() {
           )}
         </div>
         <div style={{ width: 240, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
+          {license.state.status === "checking" && (
+            <div className="license-header-status" role="status" aria-live="polite">
+              <IconLoader2 size={14} stroke={2} className="trimi-spin" aria-hidden="true" />
+              Checking license
+            </div>
+          )}
+          {license.state.status === "offline" && (
+            <button type="button" className="license-header-status license-header-action" onClick={() => setLicensePromptOpen(true)}>
+              License offline
+            </button>
+          )}
           <button
             onClick={toggle}
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -185,30 +168,50 @@ function App() {
         </div>
       </div>
 
-      {license.state.status !== "unlocked" ? (
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*,.mov,.m4v"
+        aria-label={hasVideo ? "Choose another video" : "Choose a video"}
+        style={{ display: "none" }}
+        onChange={(event) => {
+          const nextFile = event.target.files?.[0];
+          if (nextFile) {
+            if (editor.clips.length) editor.addFile(nextFile);
+            else editor.loadFile(nextFile);
+          }
+          event.currentTarget.value = "";
+        }}
+      />
+
+      <div style={{
+        flex: 1,
+        minHeight: 0,
+        display: "grid",
+        gridTemplateColumns: "minmax(0, 1fr) 296px",
+        gridTemplateRows: "minmax(0, 1fr) 150px",
+        gap: 12,
+        padding: "8px 16px 16px",
+      }}>
+        <VideoStage editor={editor} />
+        <Sidebar
+          editor={editor}
+          onAddVideo={requestVideoUpload}
+          addVideoDisabled={license.state.status === "checking"}
+        />
+        <Timeline editor={editor} />
+      </div>
+
+      {licensePromptOpen && (
         <ActivationGate
           mode={license.state.status}
           onActivate={license.activate}
           activating={license.activating}
           error={license.activateError}
-          onRetry={license.retry}
+          onRetry={retryLicense}
+          onClose={closeLicensePrompt}
+          onContinue={continueToVideoUpload}
         />
-      ) : hasVideo ? (
-        <div style={{
-          flex: 1,
-          minHeight: 0,
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 296px",
-          gridTemplateRows: "minmax(0, 1fr) 150px",
-          gap: 12,
-          padding: "8px 16px 16px",
-        }}>
-          <VideoStage editor={editor} />
-          <Sidebar editor={editor} />
-          <Timeline editor={editor} />
-        </div>
-      ) : (
-        <DropZone onFile={editor.loadFile} />
       )}
     </div>
   );
