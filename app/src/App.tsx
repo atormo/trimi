@@ -92,11 +92,6 @@ function App() {
     retryLicenseCheck();
   }, [retryLicenseCheck]);
 
-  const continueToVideoUpload = useCallback(() => {
-    videoInputRef.current?.click();
-    setLicensePromptOpen(false);
-  }, []);
-
   const logo = (
     <img
       src={theme === "dark" ? trimiLogoDark : trimiLogo}
@@ -280,7 +275,6 @@ function App() {
           error={license.activateError}
           onRetry={retryLicense}
           onClose={closeLicensePrompt}
-          onContinue={continueToVideoUpload}
         />
       )}
     </div>

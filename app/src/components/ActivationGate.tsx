@@ -31,7 +31,6 @@ export function ActivationGate({
   error,
   onRetry,
   onClose,
-  onContinue,
 }: {
   mode: "checking" | "offline" | "locked" | "unlocked";
   onActivate: (key: string) => void;
@@ -39,7 +38,6 @@ export function ActivationGate({
   error: string | null;
   onRetry: () => void;
   onClose: () => void;
-  onContinue: () => void;
 }) {
   const [key, setKey] = useState("");
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -168,10 +166,7 @@ export function ActivationGate({
             <div style={iconBubbleStyle}>
               <IconCheck size={24} stroke={2.2} color="var(--tool-speed)" aria-hidden="true" />
             </div>
-            <div id="license-dialog-title" style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>License active</div>
-            <button type="button" className="license-dialog-action" data-dialog-initial-focus onClick={onContinue} style={{ ...primaryActionStyle, width: "100%", maxWidth: 340 }}>
-              Add video
-            </button>
+            <div id="license-dialog-title" role="status" aria-live="polite" style={{ fontSize: 15, fontWeight: 500, color: "var(--text-1)" }}>License added</div>
           </>
         )}
       </div>
