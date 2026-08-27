@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
@@ -13,12 +13,24 @@ import { ActivationGate } from "./components/ActivationGate";
 
 function App() {
   const editor = useVideoEditor();
+  const { clearClipSelection } = editor;
   const { theme, toggle } = useTheme();
   const license = useLicense();
   const hasVideo = Boolean(editor.videoUrl);
   const [newVideoOpen, setNewVideoOpen] = useState(false);
   const [newVideoMotion, setNewVideoMotion] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+
+  useEffect(() => {
+    if (!hasVideo) return;
+    const clearSelectionOutsideClips = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      if (target?.closest("[data-clip-selection-surface]")) return;
+      clearClipSelection();
+    };
+    document.addEventListener("pointerdown", clearSelectionOutsideClips);
+    return () => document.removeEventListener("pointerdown", clearSelectionOutsideClips);
+  }, [clearClipSelection, hasVideo]);
 
   const logo = (
     <img

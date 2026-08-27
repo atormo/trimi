@@ -121,8 +121,9 @@ function OptionGrid<T extends string>({
 
 export function Sidebar({ editor }: { editor: VideoEditor }) {
   const {
-    file, edit, trimView, duration, naturalAspect, clips, activeClipId, totalDuration,
+    file, edit, trimView, duration, naturalAspect, clips, selectedClipId, totalDuration,
     addFile, removeClip, moveClip, reorderClip, selectClip,
+    togglePlay,
     commitTrim, resetTrim, trimEditing, cutPending, startTrimEdit, cancelTrimEdit,
     cropEditing, cropEditStart, cropPresetLabel, startCropEdit, applyCrop, cancelCropEdit, setCropPreset,
     setSpeed, setPreservesPitch, setMuted, setColor, resetColor,
@@ -279,7 +280,8 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                   <li
                     key={clip.id}
                     className="clip-card"
-                    data-active={clip.id === activeClipId}
+                    data-active={clip.id === selectedClipId}
+                    data-clip-selection-surface
                     data-dragging={draggedClipId === clip.id}
                     data-drag-over={dragOverClipId === clip.id && draggedClipId !== clip.id}
                     data-reorderable={clips.length > 1}
@@ -313,14 +315,23 @@ export function Sidebar({ editor }: { editor: VideoEditor }) {
                     <button
                       type="button"
                       className="clip-card-select"
-                      aria-pressed={clip.id === activeClipId}
+                      aria-pressed={clip.id === selectedClipId}
                       aria-describedby={clips.length > 1 ? "clip-reorder-hint" : undefined}
                       aria-label={`${clip.file.name}, video ${index + 1} of ${clips.length}${clips.length > 1 ? ". Press Alt and Arrow Up or Arrow Down to reorder" : ""}`}
                       onClick={() => selectClip(clip.id)}
                       onKeyDown={(event) => {
+                        if (event.key === " " || event.code === "Space") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          if (!event.repeat && clip.id === selectedClipId) togglePlay();
+                          return;
+                        }
                         if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return;
                         event.preventDefault();
                         reorderClip(clip.id, event.key === "ArrowUp" ? -1 : 1);
+                      }}
+                      onKeyUp={(event) => {
+                        if (event.key === " " || event.code === "Space") event.preventDefault();
                       }}
                     >
                       <span title={clip.file.name} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>{clip.file.name}</span>

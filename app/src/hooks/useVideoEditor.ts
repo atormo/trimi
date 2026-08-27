@@ -27,6 +27,7 @@ export function useVideoEditor() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [clips, setClips] = useState<VideoClip[]>([]);
   const [activeClipId, setActiveClipId] = useState<string | null>(null);
+  const [selectedClipId, setSelectedClipId] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [cropEditing, setCropEditing] = useState(false);
@@ -91,7 +92,14 @@ export function useVideoEditor() {
     setIsPlaying(false);
     setCurrentTime(clip.edit.trimStart);
     setActiveClipId(id);
+    setSelectedClipId(id);
   }, [resetEditingModes, resetScrubPipeline]);
+
+  const markClipSelected = useCallback((id: string) => {
+    if (clipsRef.current.some((clip) => clip.id === id)) setSelectedClipId(id);
+  }, []);
+
+  const clearClipSelection = useCallback(() => setSelectedClipId(null), []);
 
   const loadFile = useCallback((file: File) => {
     videoRef.current?.pause();
@@ -101,6 +109,7 @@ export function useVideoEditor() {
     resetEditingModes();
     setClips([clip]);
     setActiveClipId(clip.id);
+    setSelectedClipId(clip.id);
     setCurrentTime(0);
     setIsPlaying(false);
   }, [resetEditingModes, resetScrubPipeline]);
@@ -112,6 +121,7 @@ export function useVideoEditor() {
     resetEditingModes();
     setClips((current) => [...current, clip]);
     setActiveClipId(clip.id);
+    setSelectedClipId(clip.id);
     setCurrentTime(0);
     setIsPlaying(false);
   }, [resetEditingModes, resetScrubPipeline]);
@@ -123,6 +133,7 @@ export function useVideoEditor() {
     resetEditingModes();
     setClips([]);
     setActiveClipId(null);
+    setSelectedClipId(null);
     setCurrentTime(0);
     setIsPlaying(false);
   }, [resetEditingModes, resetScrubPipeline]);
@@ -141,10 +152,13 @@ export function useVideoEditor() {
     if (activeClipIdRef.current === id) {
       const next = remaining[Math.min(index, remaining.length - 1)];
       setActiveClipId(next.id);
+      setSelectedClipId(next.id);
       setCurrentTime(next.edit.trimStart);
       resetEditingModes();
+    } else if (selectedClipId === id) {
+      setSelectedClipId(null);
     }
-  }, [resetEditingModes]);
+  }, [resetEditingModes, selectedClipId]);
 
   const moveClip = useCallback((sourceId: string, targetId: string) => {
     if (sourceId === targetId) return;
@@ -427,14 +441,14 @@ export function useVideoEditor() {
   const totalDuration = clips.reduce((sum, clip) => sum + Math.max(0, clip.edit.trimEnd - clip.edit.trimStart) / Math.max(clip.edit.speed, 0.01), 0);
 
   return {
-    videoRef, clips, activeClip, activeClipId, totalDuration,
+    videoRef, clips, activeClip, activeClipId, selectedClipId, totalDuration,
     file: activeClip?.file ?? null, videoUrl: activeClip?.url ?? null,
     duration, currentTime, isPlaying, edit,
     naturalAspect: activeClip?.naturalAspect ?? null,
     sourceSize: activeClip?.sourceSize ?? null,
     trimView, cropEditing, cropEditStart, cropPresetLabel,
     trimEditing, trimEditStart, cutPending,
-    loadFile, addFile, clearFile, removeClip, selectClip, moveClip, reorderClip,
+    loadFile, addFile, clearFile, removeClip, selectClip, markClipSelected, clearClipSelection, moveClip, reorderClip,
     onLoadedMetadata, onTimeUpdate, togglePlay, seek, previewFrame, commitPreviewFrame, onSeeked,
     setTrim, commitTrim, resetTrim, startTrimEdit, cancelTrimEdit,
     setSpeed, setPreservesPitch, setMuted, setCrop, setCropPreset,

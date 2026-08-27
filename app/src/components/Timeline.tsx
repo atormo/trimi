@@ -129,9 +129,9 @@ function outputDuration(clip: VideoClip) {
 
 export function Timeline({ editor }: { editor: VideoEditor }) {
   const {
-    clips, activeClip, activeClipId, totalDuration, currentTime, trimEditing, cutPending,
+    clips, activeClip, activeClipId, selectedClipId, totalDuration, currentTime, trimEditing, cutPending,
     isPlaying, togglePlay, setTrim, seek, previewFrame, commitPreviewFrame,
-    selectClip,
+    selectClip, markClipSelected,
   } = editor;
   const segmentRefs = useRef(new Map<string, HTMLDivElement>());
   const trimBoundsRef = useRef({ start: editor.edit.trimStart, end: editor.edit.trimEnd });
@@ -241,6 +241,7 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
         <div style={{ display: "flex", height: 68, minWidth: "100%", width: clips.length > 4 ? `${clips.length * 25}%` : "100%", gap: 2 }}>
           {clips.map((clip, index) => {
             const active = clip.id === activeClipId;
+            const selected = clip.id === selectedClipId;
             const clipDuration = outputDuration(clip);
             const viewStart = clip.trimView.start;
             const viewEnd = clip.trimView.end || clip.duration;
@@ -252,10 +253,11 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                 ref={(node) => { if (node) segmentRefs.current.set(clip.id, node); else segmentRefs.current.delete(clip.id); }}
                 className="timeline-clip"
                 data-active={active}
+                data-selected={selected}
+                data-clip-selection-surface
                 style={{
                   position: "relative", minWidth: 84, flexBasis: 0, flexGrow: Math.max(clipDuration, totalDuration * 0.08),
                   borderRadius: "var(--radius-sm)", background: "var(--bg-chip)",
-                  boxShadow: active ? "inset 0 0 0 2px var(--tool-trim-strong)" : "inset 0 0 0 1px var(--tool-trim)",
                   overflow: "visible",
                 }}
               >
@@ -269,7 +271,10 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                   aria-valuetext={formatTime(active ? timelineTime : clip.edit.trimStart)}
                   title={`${clip.file.name} · ${formatTime(clipDuration)}`}
                   onClick={() => { if (!active) selectClip(clip.id); }}
-                  onPointerDown={(event) => { if (active && !trimEditing) beginInteraction("scrub", event); }}
+                  onPointerDown={(event) => {
+                    markClipSelected(clip.id);
+                    if (active && !trimEditing) beginInteraction("scrub", event);
+                  }}
                   onKeyDown={(event) => {
                     if (!active) return;
                     let nextTime = timelineTime;
@@ -286,8 +291,6 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                 >
                   <span aria-hidden="true" style={{ position: "absolute", inset: 0, background: "var(--bg-chip)" }} />
                   {clip.duration > 0 && <Filmstrip videoUrl={clip.url} rangeStart={viewStart} rangeEnd={viewEnd} crop={clip.edit.crop} naturalAspect={clip.naturalAspect} filter={colorFilterCss(clip.edit.color)} />}
-                  <span aria-hidden="true" style={{ position: "absolute", insetBlock: 0, left: 0, width: 3, background: "var(--tool-trim-strong)", opacity: active ? 1 : 0.72 }} />
-                  <span aria-hidden="true" style={{ position: "absolute", insetBlock: 0, right: 0, width: 3, background: "var(--tool-trim-strong)", opacity: active ? 1 : 0.72 }} />
                   {!(active && trimEditing) && (
                     <span aria-hidden="true" className="tabular-nums" style={{ position: "absolute", right: 6, bottom: 5, padding: "2px 5px", borderRadius: 4, background: "rgba(12,18,32,0.72)", color: "#fff", fontSize: 9.5 }}>
                       {formatTime(clipDuration)}
@@ -295,13 +298,21 @@ export function Timeline({ editor }: { editor: VideoEditor }) {
                   )}
                 </div>
 
+                <div
+                  aria-hidden="true"
+                  style={{
+                    position: "absolute", inset: 0, zIndex: 4, borderRadius: "inherit", pointerEvents: "none",
+                    boxShadow: `inset 0 0 0 1px ${selected ? "var(--tool-trim-strong)" : "var(--image-outline)"}`,
+                  }}
+                />
+
                 {active && trimEditing && (
                   <>
                     <div aria-hidden="true" style={{ position: "absolute", inset: `0 ${100 - startPct}% 0 0`, borderRadius: "var(--radius-sm) 0 0 var(--radius-sm)", background: "var(--bg-window)", opacity: cutPending ? 0 : 0.72, transform: `scaleX(${cutPending ? 0 : 1})`, transformOrigin: "left center", transition: trimFeedbackTransition, pointerEvents: "none" }} />
                     <div aria-hidden="true" style={{ position: "absolute", inset: `0 0 0 ${endPct}%`, borderRadius: "0 var(--radius-sm) var(--radius-sm) 0", background: "var(--bg-window)", opacity: cutPending ? 0 : 0.72, transform: `scaleX(${cutPending ? 0 : 1})`, transformOrigin: "right center", transition: trimFeedbackTransition, pointerEvents: "none" }} />
                     <div aria-hidden="true" style={{ position: "absolute", top: 0, bottom: 0, left: `${startPct}%`, right: `${100 - endPct}%`, border: "2px solid var(--tool-trim)", opacity: cutPending ? 0 : 1, transition: `opacity ${CUT_COMPRESS_MS}ms ease-out`, pointerEvents: "none" }} />
-                    {!cutPending && <TrimHandle side="start" pct={startPct} onDown={(event) => beginInteraction("start", event)} />}
-                    {!cutPending && <TrimHandle side="end" pct={endPct} onDown={(event) => beginInteraction("end", event)} />}
+                    {!cutPending && <TrimHandle side="start" pct={startPct} onDown={(event) => { markClipSelected(clip.id); beginInteraction("start", event); }} />}
+                    {!cutPending && <TrimHandle side="end" pct={endPct} onDown={(event) => { markClipSelected(clip.id); beginInteraction("end", event); }} />}
                   </>
                 )}
 
