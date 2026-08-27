@@ -309,6 +309,52 @@ button:focus-visible,
   color: var(--text-1);
 }
 
+.try-sample-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.try-sample-button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--bg-chip);
+  color: var(--text-1);
+  box-shadow: var(--control-shadow);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: transform 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
+}
+
+.try-sample-button:not(:disabled):hover,
+.try-sample-button:focus-visible {
+  background: var(--bg-chip-hover);
+}
+
+.try-sample-button:not(:disabled):active {
+  transform: scale(0.96);
+}
+
+.try-sample-button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.try-sample-error {
+  color: var(--danger);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
 .sample-video-credit {
   color: var(--text-3);
   display: flex;
@@ -416,6 +462,7 @@ button:focus-visible,
   }
 
   .license-header-action,
+  .try-sample-button,
   .sample-video-link,
   .license-dialog-close,
   .license-dialog-action,
@@ -426,6 +473,10 @@ button:focus-visible,
   .clip-card-select,
   .timeline-clip {
     transition: none;
+  }
+
+  .trimi-spin {
+    animation: none;
   }
 }
 

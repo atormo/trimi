@@ -24,28 +24,42 @@ function App() {
   const isSampleSelected = editor.file?.name === SAMPLE_VIDEO_NAME;
   const [accountOpen, setAccountOpen] = useState(false);
   const [licensePromptOpen, setLicensePromptOpen] = useState(false);
+  const [sampleLoadState, setSampleLoadState] = useState<"idle" | "loading" | "error">("idle");
   const videoInputRef = useRef<HTMLInputElement | null>(null);
-  const sampleReplacedRef = useRef(false);
+  const sampleBlobPromiseRef = useRef<Promise<Blob> | null>(null);
+  const sampleLoadRequestRef = useRef(0);
 
-  useEffect(() => {
-    const controller = new AbortController();
-
-    fetch(SAMPLE_VIDEO_URL, { signal: controller.signal })
+  const getSampleBlob = useCallback(() => {
+    sampleBlobPromiseRef.current ??= fetch(SAMPLE_VIDEO_URL)
       .then((response) => {
         if (!response.ok) throw new Error(`Sample video request failed with ${response.status}`);
         return response.blob();
       })
-      .then((blob) => {
-        if (sampleReplacedRef.current) return;
-        loadFile(new File([blob], SAMPLE_VIDEO_NAME, { type: "video/mp4" }));
-      })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        console.error("Couldn't load the sample video.", error);
+        sampleBlobPromiseRef.current = null;
+        throw error;
       });
+    return sampleBlobPromiseRef.current;
+  }, []);
 
-    return () => controller.abort();
-  }, [loadFile]);
+  const prefetchSampleVideo = useCallback(() => {
+    void getSampleBlob().catch(() => undefined);
+  }, [getSampleBlob]);
+
+  const trySampleVideo = useCallback(async () => {
+    const requestId = ++sampleLoadRequestRef.current;
+    setSampleLoadState("loading");
+    try {
+      const blob = await getSampleBlob();
+      if (sampleLoadRequestRef.current !== requestId) return;
+      loadFile(new File([blob], SAMPLE_VIDEO_NAME, { type: "video/mp4" }));
+      setSampleLoadState("idle");
+    } catch (error: unknown) {
+      if (sampleLoadRequestRef.current !== requestId) return;
+      console.error("Couldn't load the sample video.", error);
+      setSampleLoadState("error");
+    }
+  }, [getSampleBlob, loadFile]);
 
   useEffect(() => {
     if (!hasVideo) return;
@@ -103,6 +117,24 @@ function App() {
           {logo}
         </div>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          {!editor.file && (
+            <div className="try-sample-group">
+              <button
+                type="button"
+                className="try-sample-button"
+                disabled={sampleLoadState === "loading"}
+                aria-busy={sampleLoadState === "loading"}
+                aria-describedby={sampleLoadState === "error" ? "try-sample-error" : undefined}
+                onPointerEnter={prefetchSampleVideo}
+                onFocus={prefetchSampleVideo}
+                onClick={trySampleVideo}
+              >
+                {sampleLoadState === "loading" && <IconLoader2 size={14} stroke={2} className="trimi-spin" aria-hidden="true" />}
+                {sampleLoadState === "loading" ? "Loading video…" : "Try placeholder video"}
+              </button>
+              {sampleLoadState === "error" && <span id="try-sample-error" className="try-sample-error" role="alert">Couldn't load video</span>}
+            </div>
+          )}
           {editor.file && (
             <>
               <div style={{ maxWidth: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
@@ -213,7 +245,8 @@ function App() {
         onChange={(event) => {
           const nextFile = event.target.files?.[0];
           if (nextFile) {
-            sampleReplacedRef.current = true;
+            sampleLoadRequestRef.current += 1;
+            setSampleLoadState("idle");
             if (editor.clips.length) editor.addFile(nextFile);
             else editor.loadFile(nextFile);
           }
