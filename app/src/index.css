@@ -121,8 +121,29 @@ button:focus-visible,
   margin-top: 12px;
 }
 
+.video-sequence {
+  margin-inline: -8px;
+}
+
+.video-sequence[data-empty="true"] .add-video-button {
+  margin-top: 0;
+}
+
 .add-video-button:disabled {
   cursor: wait;
+}
+
+.editor-control-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.editor-control-stack[data-disabled="true"] {
+  opacity: 0.42;
+  filter: grayscale(1);
+  pointer-events: none;
+  user-select: none;
 }
 
 .clip-list {

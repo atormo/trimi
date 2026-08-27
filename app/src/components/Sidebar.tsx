@@ -290,7 +290,7 @@ export function Sidebar({
       <div style={{ display: "flex", flexDirection: "column", gap: 22, padding: "8px 18px 18px", overflowY: "auto" }}>
         {tab === "edit" ? (
           <>
-            <div role="group" aria-label="Video sequence" style={{ display: "flex", flexDirection: "column" }}>
+            <div className="video-sequence" data-empty={!clips.length} role="group" aria-label="Video sequence" style={{ display: "flex", flexDirection: "column" }}>
               <ol className="clip-list">
                 {clips.map((clip, index) => (
                   <li
@@ -366,9 +366,13 @@ export function Sidebar({
               {clips.length > 1 && <div id="clip-reorder-hint" className="clip-reorder-hint">Drag these cards to reorder</div>}
             </div>
 
-            {clips.length > 0 && (
-              <>
-            <Section title="Trim" icon={<IconScissors size={14} stroke={2} color="var(--tool-trim)" />}>
+            <div
+              className="editor-control-stack"
+              data-disabled={!file}
+              aria-disabled={!file}
+              inert={!file ? true : undefined}
+            >
+              <Section title="Trim" icon={<IconScissors size={14} stroke={2} color="var(--tool-trim)" />}>
               {trimEditing ? (
                 <>
                   <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontVariantNumeric: "tabular-nums" }}>
@@ -402,9 +406,9 @@ export function Sidebar({
                   Edit trim
                 </button>
               )}
-            </Section>
+              </Section>
 
-            <Section title="Crop" icon={<IconCrop size={16} stroke={2.1} color="var(--tool-crop)" />}>
+              <Section title="Crop" icon={<IconCrop size={16} stroke={2.1} color="var(--tool-crop)" />}>
               {cropEditing ? (
                 <>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -460,41 +464,40 @@ export function Sidebar({
                   Edit crop
                 </button>
               )}
-            </Section>
+              </Section>
 
-            <Section title="Audio" icon={<IconVolume size={14} stroke={2} color="var(--tool-audio)" />}>
-              <Checkbox checked={edit.isMuted} onChange={setMuted} label="Mute audio" />
-            </Section>
+              <Section title="Audio" icon={<IconVolume size={14} stroke={2} color="var(--tool-audio)" />}>
+                <Checkbox checked={edit.isMuted} onChange={setMuted} label="Mute audio" />
+              </Section>
 
-            <Section title="Speed" icon={<IconGauge size={14} stroke={2} color="var(--tool-speed)" />}>
-              <Slider label="Speed" value={edit.speed} display={`${edit.speed.toFixed(2)}x`} min={0.25} max={4} step={0.05} onChange={setSpeed} color="var(--tool-speed)" snapTo={1} scale="logarithmic" />
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 12.5, color: "var(--text-1)" }}>Preserve pitch</span>
-                <Toggle on={edit.preservesPitch} onChange={setPreservesPitch} color="var(--tool-speed)" />
-              </div>
-            </Section>
+              <Section title="Speed" icon={<IconGauge size={14} stroke={2} color="var(--tool-speed)" />}>
+                <Slider label="Speed" value={edit.speed} display={`${edit.speed.toFixed(2)}x`} min={0.25} max={4} step={0.05} onChange={setSpeed} color="var(--tool-speed)" snapTo={1} scale="logarithmic" />
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <span style={{ fontSize: 12.5, color: "var(--text-1)" }}>Preserve pitch</span>
+                  <Toggle on={edit.preservesPitch} onChange={setPreservesPitch} color="var(--tool-speed)" />
+                </div>
+              </Section>
 
-            <Section
-              title="Color"
-              icon={<IconPalette size={14} stroke={2} color="var(--tool-color)" />}
-              action={(
-                <button
-                  type="button"
-                  onClick={resetColor}
-                  style={{ height: 40, margin: "-10px 0", padding: "0 0 0 10px", border: "none", background: "transparent", display: "flex", alignItems: "center", gap: 4, color: "var(--text-3)", cursor: "pointer", fontSize: 11 }}
-                >
-                  <IconRotate size={12} stroke={2} aria-hidden="true" />
-                  Reset
-                </button>
-              )}
-            >
-              <Slider label="Exposure" value={edit.color.exposure} display={edit.color.exposure.toFixed(2)} min={-2} max={2} step={0.05} onChange={(v) => setColor({ exposure: v })} color="var(--tool-color)" snapTo={0} />
-              <Slider label="Contrast" value={edit.color.contrast} display={edit.color.contrast.toFixed(2)} min={0.5} max={1.5} step={0.01} onChange={(v) => setColor({ contrast: v })} color="var(--tool-color)" snapTo={1} />
-              <Slider label="Saturation" value={edit.color.saturation} display={edit.color.saturation.toFixed(2)} min={0} max={2} step={0.05} onChange={(v) => setColor({ saturation: v })} color="var(--tool-color)" snapTo={1} />
-              <Slider label="Temperature" value={edit.color.temperature} display={edit.color.temperature.toFixed(2)} min={-1} max={1} step={0.05} onChange={(v) => setColor({ temperature: v })} color="var(--tool-color)" snapTo={0} />
-            </Section>
-              </>
-            )}
+              <Section
+                title="Color"
+                icon={<IconPalette size={14} stroke={2} color="var(--tool-color)" />}
+                action={(
+                  <button
+                    type="button"
+                    onClick={resetColor}
+                    style={{ height: 40, margin: "-10px 0", padding: "0 0 0 10px", border: "none", background: "transparent", display: "flex", alignItems: "center", gap: 4, color: "var(--text-3)", cursor: "pointer", fontSize: 11 }}
+                  >
+                    <IconRotate size={12} stroke={2} aria-hidden="true" />
+                    Reset
+                  </button>
+                )}
+              >
+                <Slider label="Exposure" value={edit.color.exposure} display={edit.color.exposure.toFixed(2)} min={-2} max={2} step={0.05} onChange={(v) => setColor({ exposure: v })} color="var(--tool-color)" snapTo={0} />
+                <Slider label="Contrast" value={edit.color.contrast} display={edit.color.contrast.toFixed(2)} min={0.5} max={1.5} step={0.01} onChange={(v) => setColor({ contrast: v })} color="var(--tool-color)" snapTo={1} />
+                <Slider label="Saturation" value={edit.color.saturation} display={edit.color.saturation.toFixed(2)} min={0} max={2} step={0.05} onChange={(v) => setColor({ saturation: v })} color="var(--tool-color)" snapTo={1} />
+                <Slider label="Temperature" value={edit.color.temperature} display={edit.color.temperature.toFixed(2)} min={-1} max={1} step={0.05} onChange={(v) => setColor({ temperature: v })} color="var(--tool-color)" snapTo={0} />
+              </Section>
+            </div>
           </>
         ) : file ? (
           <>
