@@ -371,12 +371,11 @@ export function VideoStage({ editor, onImportVideo }: { editor: VideoEditor; onI
               <div className="video-drop-ring" />
               <div className="video-drop-ring" />
               <div className="video-drop-ring" />
-              <div className="video-drop-ring">
-                <div className="video-drop-content">
-                  <img className="video-drop-logo" src={trimiLogoDark} alt="" />
-                  <div className="video-drop-title">Drop to import video</div>
-                  <div className="video-drop-help">MP4, MOV, M4V, or WebM</div>
-                </div>
+              <div className="video-drop-ring" />
+              <div className="video-drop-content">
+                <img className="video-drop-logo" src={trimiLogoDark} alt="" />
+                <div className="video-drop-title">Drop to import video</div>
+                <div className="video-drop-help">MP4, MOV, M4V, or WebM</div>
               </div>
             </div>
           </div>

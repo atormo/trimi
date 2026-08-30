@@ -116,7 +116,7 @@ button:focus-visible,
   z-index: 2;
   padding: 16px;
   border-radius: inherit;
-  background: rgba(5, 10, 20, 0.78);
+  background: rgba(5, 10, 20, 0.84);
   color: #ffffff;
   opacity: 0;
   pointer-events: none;
@@ -136,7 +136,13 @@ button:focus-visible,
 .video-drop-ring {
   position: absolute;
   border-radius: var(--radius-md);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.13);
+  opacity: 0;
+  transition: opacity 100ms ease-out;
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-ring {
+  opacity: 1;
 }
 
 .video-drop-ring:nth-child(1) {
@@ -146,62 +152,67 @@ button:focus-visible,
 .video-drop-ring:nth-child(2) {
   inset-block: 6%;
   inset-inline: 7.2%;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.15);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.15);
 }
 
 .video-drop-ring:nth-child(3) {
   inset-block: 12%;
   inset-inline: 14.4%;
   border-radius: 7px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.17);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.17);
 }
 
 .video-drop-ring:nth-child(4) {
   inset-block: 18%;
   inset-inline: 21.6%;
   border-radius: 7px;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.19);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.19);
 }
 
 .video-drop-ring:nth-child(5) {
   inset-block: 24%;
   inset-inline: 28.8%;
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.21);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.21);
 }
 
 .video-drop-ring:nth-child(6) {
   inset-block: 30%;
   inset-inline: 36%;
   border-radius: var(--radius-sm);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.25);
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-ring:nth-child(2) {
+  transition-delay: 18ms;
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-ring:nth-child(3) {
+  transition-delay: 36ms;
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-ring:nth-child(4) {
+  transition-delay: 54ms;
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-ring:nth-child(5) {
+  transition-delay: 72ms;
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-ring:nth-child(6) {
+  transition-delay: 90ms;
+}
+
+.video-drop-content {
+  position: absolute;
+  inset-block: 30%;
+  inset-inline: 36%;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: clamp(22px, 3vw, 42px);
-}
-
-.video-drop-content {
-  display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   text-align: center;
-}
-
-.video-drop-logo,
-.video-drop-title,
-.video-drop-help {
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity 160ms ease-out, transform 160ms ease-out;
-}
-
-.video-drop-overlay[data-active="true"] .video-drop-logo,
-.video-drop-overlay[data-active="true"] .video-drop-title,
-.video-drop-overlay[data-active="true"] .video-drop-help {
-  opacity: 1;
-  transform: translateY(0);
 }
 
 .video-drop-logo {
@@ -674,9 +685,7 @@ button:focus-visible,
 
 @media (prefers-reduced-motion: reduce) {
   .video-drop-overlay,
-  .video-drop-logo,
-  .video-drop-title,
-  .video-drop-help {
+  .video-drop-ring {
     transition: none;
   }
 
