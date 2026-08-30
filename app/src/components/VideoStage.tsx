@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { IconPlayerPauseFilled, IconPlayerPlayFilled, IconPlayerSkipBackFilled, IconPlayerSkipForwardFilled } from "@tabler/icons-react";
+import trimiLogoDark from "../assets/trimi-logo-dark.png";
 import type { VideoEditor } from "../hooks/useVideoEditor";
 import { colorFilterCss, temperatureOverlayStyle } from "../lib/colorFilter";
 import { FULL_CROP } from "../types";
@@ -46,9 +47,20 @@ function useFitSize(stageRef: RefObject<HTMLDivElement | null>, aspect: number |
   return size;
 }
 
-export function VideoStage({ editor }: { editor: VideoEditor }) {
+function isVideoFile(file: File) {
+  return file.type.startsWith("video/") || /\.(m4v|mov|mp4|ogv|webm)$/i.test(file.name);
+}
+
+function containsFiles(dataTransfer: DataTransfer) {
+  return Array.from(dataTransfer.types).includes("Files");
+}
+
+export function VideoStage({ editor, onImportVideo }: { editor: VideoEditor; onImportVideo: (file: File) => void }) {
   const { videoRef, edit, naturalAspect, cropEditing, isPlaying, onLoadedMetadata, onTimeUpdate, onSeeked, togglePlay, seek, setCrop } = editor;
+  const [isFileOver, setIsFileOver] = useState(false);
+  const [dropError, setDropError] = useState<string | null>(null);
   const stageRef = useRef<HTMLDivElement | null>(null);
+  const fileDragDepthRef = useRef(0);
   const boxRef = useRef<HTMLDivElement | null>(null);
   const transportRef = useRef<HTMLDivElement | null>(null);
   const transportPositionRef = useRef<{ x: number; y: number } | null>(null);
@@ -284,9 +296,54 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
     : undefined;
   const fitSize = useFitSize(stageRef, containerAspect);
 
+  const handleFileDragEnter = (event: React.DragEvent<HTMLDivElement>) => {
+    if (editor.videoUrl || !containsFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    fileDragDepthRef.current += 1;
+    setDropError(null);
+    setIsFileOver(true);
+  };
+
+  const handleFileDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    if (editor.videoUrl || !containsFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setIsFileOver(true);
+  };
+
+  const handleFileDragLeave = (event: React.DragEvent<HTMLDivElement>) => {
+    if (editor.videoUrl || !containsFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+    if (fileDragDepthRef.current === 0) setIsFileOver(false);
+  };
+
+  const handleFileDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    if (editor.videoUrl || !containsFiles(event.dataTransfer)) return;
+    event.preventDefault();
+    fileDragDepthRef.current = 0;
+    setIsFileOver(false);
+
+    const file = event.dataTransfer.files[0];
+    if (!file || !isVideoFile(file)) {
+      setDropError("Choose a video file: MP4, MOV, M4V, or WebM.");
+      return;
+    }
+
+    setDropError(null);
+    onImportVideo(file);
+  };
+
   return (
     <div
       ref={stageRef}
+      className="video-stage"
+      data-file-drop-target={!editor.videoUrl}
+      data-file-over={isFileOver}
+      onDragEnter={handleFileDragEnter}
+      onDragOver={handleFileDragOver}
+      onDragLeave={handleFileDragLeave}
+      onDrop={handleFileDrop}
       style={{
         flex: 1,
         minHeight: 0,
@@ -305,6 +362,21 @@ export function VideoStage({ editor }: { editor: VideoEditor }) {
         padding: STAGE_PADDING,
       }}
     >
+      {!editor.videoUrl && (
+        <>
+          <div className="video-drop-overlay" data-active={isFileOver} aria-hidden={!isFileOver}>
+            <div className="video-drop-overlay-frame">
+              <img className="video-drop-logo" src={trimiLogoDark} alt="" />
+              <div className="video-drop-title">Drop to import video</div>
+              <div className="video-drop-help">MP4, MOV, M4V, or WebM</div>
+            </div>
+          </div>
+          <span className="visually-hidden" role="status" aria-live="polite">
+            {isFileOver ? "Drop the video to import it" : ""}
+          </span>
+          {dropError && <div className="video-drop-error" role="alert">{dropError}</div>}
+        </>
+      )}
       {editor.videoUrl && (
         <>
         {/* boxRef never clips — the crop overlay's grab handles extend past the video's edges,

@@ -98,6 +98,102 @@ button:focus-visible,
   outline-offset: 2px;
 }
 
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.video-drop-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 16px;
+  border-radius: inherit;
+  background: rgba(5, 10, 20, 0.78);
+  color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease-out;
+}
+
+.video-drop-overlay[data-active="true"] {
+  opacity: 1;
+}
+
+.video-drop-overlay-frame {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-md);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.22);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.video-drop-logo,
+.video-drop-title,
+.video-drop-help {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+}
+
+.video-drop-overlay[data-active="true"] .video-drop-logo,
+.video-drop-overlay[data-active="true"] .video-drop-title,
+.video-drop-overlay[data-active="true"] .video-drop-help {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.video-drop-logo {
+  width: 124px;
+  height: auto;
+  display: block;
+  margin-bottom: 18px;
+}
+
+.video-drop-title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+
+.video-drop-help {
+  margin-top: 5px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 12.5px;
+  line-height: 1.4;
+  text-wrap: pretty;
+}
+
+.video-drop-error {
+  position: absolute;
+  left: 50%;
+  bottom: 20px;
+  z-index: 1;
+  max-width: calc(100% - 40px);
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-solid);
+  color: var(--danger);
+  box-shadow: var(--control-shadow);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  text-wrap: pretty;
+  transform: translateX(-50%);
+}
+
 .trimi-checkbox:focus-visible + .trimi-checkbox-box {
   outline: 2px solid var(--brand-blue);
   outline-offset: 2px;
@@ -527,6 +623,13 @@ button:focus-visible,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .video-drop-overlay,
+  .video-drop-logo,
+  .video-drop-title,
+  .video-drop-help {
+    transition: none;
+  }
+
   .upload-icon-feedback {
     transform: none !important;
     transition: none;

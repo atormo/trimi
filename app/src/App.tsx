@@ -16,7 +16,7 @@ const SAMPLE_VIDEO_SOURCE_URL = "https://www.pexels.com/video/wolf-looking-aroun
 
 function App() {
   const editor = useVideoEditor();
-  const { clearClipSelection, loadFile } = editor;
+  const { addFile, clearClipSelection, loadFile } = editor;
   const { theme, toggle } = useTheme();
   const license = useLicense();
   const { retry: retryLicenseCheck } = license;
@@ -29,6 +29,7 @@ function App() {
   const [sampleLoadState, setSampleLoadState] = useState<"idle" | "loading" | "error">("idle");
   const accountButtonRef = useRef<HTMLButtonElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const pendingDroppedFileRef = useRef<File | null>(null);
   const sampleBlobPromiseRef = useRef<Promise<Blob> | null>(null);
   const sampleLoadRequestRef = useRef(0);
 
@@ -75,7 +76,15 @@ function App() {
     return () => document.removeEventListener("pointerdown", clearSelectionOutsideClips);
   }, [clearClipSelection, hasVideo]);
 
+  const importVideoFile = useCallback((file: File) => {
+    sampleLoadRequestRef.current += 1;
+    setSampleLoadState("idle");
+    if (editor.clips.length) addFile(file);
+    else loadFile(file);
+  }, [addFile, editor.clips.length, loadFile]);
+
   const requestVideoUpload = () => {
+    pendingDroppedFileRef.current = null;
     if (license.state.status === "checking") return;
     if (license.state.status === "unlocked") {
       videoInputRef.current?.click();
@@ -85,8 +94,34 @@ function App() {
     setLicensePromptOpen(true);
   };
 
+  const importDroppedVideo = useCallback((file: File) => {
+    if (license.state.status === "unlocked") {
+      importVideoFile(file);
+      return;
+    }
+
+    pendingDroppedFileRef.current = file;
+    setLicenseEntryRequested(false);
+    if (license.state.status !== "checking") setLicensePromptOpen(true);
+  }, [importVideoFile, license.state.status]);
+
+  useEffect(() => {
+    const pendingFile = pendingDroppedFileRef.current;
+    if (!pendingFile) return;
+
+    if (license.state.status === "unlocked") {
+      pendingDroppedFileRef.current = null;
+      setLicensePromptOpen(false);
+      importVideoFile(pendingFile);
+      return;
+    }
+
+    if (license.state.status !== "checking") setLicensePromptOpen(true);
+  }, [importVideoFile, license.state.status]);
+
   const closeLicensePrompt = useCallback(() => {
     const restoreAccountFocus = licenseEntryRequested;
+    pendingDroppedFileRef.current = null;
     setLicensePromptOpen(false);
     setLicenseEntryRequested(false);
     if (restoreAccountFocus) requestAnimationFrame(() => accountButtonRef.current?.focus());
@@ -99,6 +134,7 @@ function App() {
   }, [retryLicenseCheck]);
 
   const openLicenseEntry = useCallback(() => {
+    pendingDroppedFileRef.current = null;
     setAccountOpen(false);
     setLicenseUnlinked(false);
     setLicenseEntryRequested(true);
@@ -292,12 +328,7 @@ function App() {
         style={{ display: "none" }}
         onChange={(event) => {
           const nextFile = event.target.files?.[0];
-          if (nextFile) {
-            sampleLoadRequestRef.current += 1;
-            setSampleLoadState("idle");
-            if (editor.clips.length) editor.addFile(nextFile);
-            else editor.loadFile(nextFile);
-          }
+          if (nextFile) importVideoFile(nextFile);
           event.currentTarget.value = "";
         }}
       />
@@ -311,7 +342,7 @@ function App() {
         gap: 12,
         padding: "8px 16px 16px",
       }}>
-        <VideoStage editor={editor} />
+        <VideoStage editor={editor} onImportVideo={importDroppedVideo} />
         <Sidebar
           editor={editor}
           onAddVideo={requestVideoUpload}
