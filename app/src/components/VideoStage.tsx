@@ -366,9 +366,18 @@ export function VideoStage({ editor, onImportVideo }: { editor: VideoEditor; onI
         <>
           <div className="video-drop-overlay" data-active={isFileOver} aria-hidden={!isFileOver}>
             <div className="video-drop-overlay-frame">
-              <img className="video-drop-logo" src={trimiLogoDark} alt="" />
-              <div className="video-drop-title">Drop to import video</div>
-              <div className="video-drop-help">MP4, MOV, M4V, or WebM</div>
+              <div className="video-drop-ring" />
+              <div className="video-drop-ring" />
+              <div className="video-drop-ring" />
+              <div className="video-drop-ring" />
+              <div className="video-drop-ring" />
+              <div className="video-drop-ring">
+                <div className="video-drop-content">
+                  <img className="video-drop-logo" src={trimiLogoDark} alt="" />
+                  <div className="video-drop-title">Drop to import video</div>
+                  <div className="video-drop-help">MP4, MOV, M4V, or WebM</div>
+                </div>
+              </div>
             </div>
           </div>
           <span className="visually-hidden" role="status" aria-live="polite">
