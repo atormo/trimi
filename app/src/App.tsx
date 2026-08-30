@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconCheck, IconKey, IconLoader2, IconLogout, IconMoon, IconSun, IconUserCircle } from "@tabler/icons-react";
+import { IconCheck, IconKey, IconLoader2, IconLogout, IconMoon, IconSun, IconUserCircle, IconWorld } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
 import { useVideoEditor } from "./hooks/useVideoEditor";
@@ -22,6 +22,8 @@ function App() {
   const { retry: retryLicenseCheck } = license;
   const hasVideo = Boolean(editor.videoUrl);
   const isSampleSelected = editor.file?.name === SAMPLE_VIDEO_NAME;
+  const [logoMenuOpen, setLogoMenuOpen] = useState(false);
+  const [logoMenuMotion, setLogoMenuMotion] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [licensePromptOpen, setLicensePromptOpen] = useState(false);
   const [licenseEntryRequested, setLicenseEntryRequested] = useState(false);
@@ -157,8 +159,49 @@ function App() {
       <div style={{
         height: 60, minHeight: 60, display: "flex", alignItems: "center", padding: "0 16px",
       }}>
-        <div style={{ width: 240, height: 40, display: "flex", alignItems: "center" }}>
-          {logo}
+        <div
+          onBlur={(event) => {
+            if (!event.currentTarget.contains(event.relatedTarget)) setLogoMenuOpen(false);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && logoMenuOpen) {
+              event.preventDefault();
+              setLogoMenuOpen(false);
+              (event.currentTarget.querySelector("button") as HTMLButtonElement | null)?.focus();
+            }
+          }}
+          style={{ width: 240, height: 40, display: "flex", alignItems: "center", position: "relative" }}
+        >
+          <button
+            type="button"
+            className="trimi-logo-button"
+            aria-label="Trimi navigation"
+            aria-expanded={logoMenuOpen}
+            aria-controls="trimi-navigation"
+            onClick={(event) => {
+              setLogoMenuMotion(event.detail > 0);
+              setLogoMenuOpen((open) => !open);
+            }}
+          >
+            {logo}
+          </button>
+
+          <div
+            id="trimi-navigation"
+            className="trimi-navigation"
+            data-open={logoMenuOpen}
+            data-motion={logoMenuMotion}
+            aria-hidden={!logoMenuOpen}
+          >
+            <a
+              className="trimi-home-link"
+              href="https://trimi.app"
+              tabIndex={logoMenuOpen ? 0 : -1}
+            >
+              <IconWorld size={16} stroke={2} aria-hidden="true" />
+              Back to trimi.app
+            </a>
+          </div>
         </div>
         <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
           {!editor.file && (
