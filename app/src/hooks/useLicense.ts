@@ -46,6 +46,9 @@ export function useLicense() {
   const [activateError, setActivateError] = useState<string | null>(null);
   const [activating, setActivating] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const [unlinkError, setUnlinkError] = useState<string | null>(null);
+  const mutationInFlight = useRef(false);
+  const verificationId = useRef(0);
   const bootChecked = useRef(false);
 
   // The app never unlocks on the strength of localStorage alone — that's attacker-controlled
@@ -53,9 +56,12 @@ export function useLicense() {
   // live "granted" response from Polar before allowing video imports. A stored license that can't
   // be verified right now keeps imports locked and exposes a retry state in the editor header.
   const verify = useCallback((stored: StoredLicense) => {
+    if (mutationInFlight.current) return;
+    const requestId = ++verificationId.current;
     setState({ status: "checking" });
     validateLicense(stored.key, stored.activationId)
       .then(({ status }) => {
+        if (requestId !== verificationId.current) return;
         if (status === "granted") {
           setState({ status: "unlocked", key: stored.key, activationId: stored.activationId });
         } else {
@@ -64,6 +70,7 @@ export function useLicense() {
         }
       })
       .catch((err) => {
+        if (requestId !== verificationId.current) return;
         if (err instanceof LicenseError && err.reason === "not_found") {
           // Definitive rejection: revoked, or deactivated elsewhere (e.g. via Polar's own portal).
           writeStored(null);
@@ -96,38 +103,51 @@ export function useLicense() {
 
   const activate = useCallback(async (rawKey: string) => {
     const key = rawKey.trim();
-    if (!key) return;
+    if (!key || mutationInFlight.current) return false;
+    mutationInFlight.current = true;
+    verificationId.current += 1;
     setActivating(true);
     setActivateError(null);
     try {
       const { activationId, status } = await activateLicense(key, deviceLabel());
       if (status !== "granted") {
         setActivateError("This license key isn't active — contact support if you think that's wrong.");
-        return;
+        return false;
       }
       writeStored({ key, activationId });
       setState({ status: "unlocked", key, activationId });
+      setUnlinkError(null);
+      return true;
     } catch (err) {
       setActivateError(err instanceof LicenseError ? err.message : "Couldn't activate — try again.");
+      return false;
     } finally {
+      mutationInFlight.current = false;
       setActivating(false);
     }
   }, []);
 
   const unlink = useCallback(async () => {
-    if (state.status !== "unlocked") return;
+    if (state.status !== "unlocked" || mutationInFlight.current) return false;
+    mutationInFlight.current = true;
+    verificationId.current += 1;
     setUnlinking(true);
+    setUnlinkError(null);
     try {
       await deactivateLicense(state.key, state.activationId);
-    } catch {
-      // Even if the network call fails, still drop it locally — worst case the seat is freed
-      // late server-side, which only ever makes re-activating elsewhere easier, never harder.
-    } finally {
       writeStored(null);
       setState({ status: "locked" });
+      setActivateError(null);
+      return true;
+    } catch (err) {
+      // Keep the key and activation so the user can retry and actually free the seat.
+      setUnlinkError(err instanceof LicenseError ? err.message : "Couldn't unlink this device. Please try again.");
+      return false;
+    } finally {
+      mutationInFlight.current = false;
       setUnlinking(false);
     }
   }, [state]);
 
-  return { state, activate, activating, activateError, unlink, unlinking, retry };
+  return { state, activate, activating, activateError, unlink, unlinking, unlinkError, retry };
 }

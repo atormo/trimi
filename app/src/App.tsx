@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconCheck, IconKey, IconLoader2, IconLogout, IconMoon, IconSun, IconUserCircle, IconWorld } from "@tabler/icons-react";
+import { IconCheck, IconKey, IconLoader2, IconMoon, IconSun, IconUserCircle, IconWorld } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
 import { useVideoEditor } from "./hooks/useVideoEditor";
@@ -8,7 +8,7 @@ import { useLicense } from "./hooks/useLicense";
 import { VideoStage } from "./components/VideoStage";
 import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
-import { ActivationGate } from "./components/ActivationGate";
+import { LicenseDialog } from "./components/LicenseDialog";
 
 const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p-silent";
 const SAMPLE_VIDEO_NAME = "wolfsample.mp4";
@@ -16,20 +16,20 @@ const SAMPLE_VIDEO_SOURCE_URL = "https://www.pexels.com/video/wolf-looking-aroun
 
 function App() {
   const editor = useVideoEditor();
-  const { addFile, clearClipSelection, loadFile } = editor;
+  const { addFile, clearClipSelection, clearFile, loadFile } = editor;
   const { theme, toggle } = useTheme();
   const license = useLicense();
-  const { retry: retryLicenseCheck } = license;
+  const { retry: retryLicenseCheck, unlink: unlinkCurrentLicense } = license;
   const hasVideo = Boolean(editor.videoUrl);
   const isSampleSelected = editor.file?.name === SAMPLE_VIDEO_NAME;
   const [logoMenuOpen, setLogoMenuOpen] = useState(false);
   const [logoMenuMotion, setLogoMenuMotion] = useState(false);
-  const [accountOpen, setAccountOpen] = useState(false);
   const [licensePromptOpen, setLicensePromptOpen] = useState(false);
   const [licenseEntryRequested, setLicenseEntryRequested] = useState(false);
   const [licenseUnlinked, setLicenseUnlinked] = useState(false);
   const [sampleLoadState, setSampleLoadState] = useState<"idle" | "loading" | "error">("idle");
   const accountButtonRef = useRef<HTMLButtonElement | null>(null);
+  const accountPopoverRef = useRef<HTMLDivElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const pendingDroppedFileRef = useRef<File | null>(null);
   const sampleBlobPromiseRef = useRef<Promise<Blob> | null>(null);
@@ -71,7 +71,7 @@ function App() {
     if (!hasVideo) return;
     const clearSelectionOutsideClips = (event: PointerEvent) => {
       const target = event.target as Element | null;
-      if (target?.closest("[data-clip-selection-surface]")) return;
+      if (target?.closest("[data-clip-selection-surface], .trimi-license-dialog")) return;
       clearClipSelection();
     };
     document.addEventListener("pointerdown", clearSelectionOutsideClips);
@@ -113,7 +113,6 @@ function App() {
 
     if (license.state.status === "unlocked") {
       pendingDroppedFileRef.current = null;
-      setLicensePromptOpen(false);
       importVideoFile(pendingFile);
       return;
     }
@@ -129,15 +128,21 @@ function App() {
     if (restoreAccountFocus) requestAnimationFrame(() => accountButtonRef.current?.focus());
   }, [licenseEntryRequested]);
 
-  const retryLicense = useCallback(() => {
-    setLicensePromptOpen(false);
-    setLicenseEntryRequested(false);
-    retryLicenseCheck();
-  }, [retryLicenseCheck]);
+  const unlinkLicense = useCallback(async () => {
+    const unlinked = await unlinkCurrentLicense();
+    if (!unlinked) return false;
+    pendingDroppedFileRef.current = null;
+    sampleLoadRequestRef.current += 1;
+    clearFile();
+    setLicenseUnlinked(true);
+    if (hasVideo) void trySampleVideo();
+    else setSampleLoadState("idle");
+    return true;
+  }, [unlinkCurrentLicense, clearFile, trySampleVideo, hasVideo]);
 
   const openLicenseEntry = useCallback(() => {
     pendingDroppedFileRef.current = null;
-    setAccountOpen(false);
+    accountPopoverRef.current?.hidePopover();
     setLicenseUnlinked(false);
     setLicenseEntryRequested(true);
     setLicensePromptOpen(true);
@@ -274,91 +279,22 @@ function App() {
           >
             {theme === "dark" ? <IconSun size={22} stroke={1.9} /> : <IconMoon size={22} stroke={1.9} />}
           </button>
-          <div
-            style={{ position: "relative" }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape" && accountOpen) {
-                event.preventDefault();
-                setAccountOpen(false);
-              }
-            }}
-            onBlur={(event) => {
-              if (!event.currentTarget.contains(event.relatedTarget)) setAccountOpen(false);
-            }}
+          <button
+            ref={accountButtonRef}
+            type="button"
+            title="Account"
+            aria-label="Account"
+            popoverTarget="account-popover"
+            className="account-avatar-button"
+            data-license-open={licensePromptOpen}
           >
-            <button
-              ref={accountButtonRef}
-              type="button"
-              title="Account"
-              aria-label="Account"
-              aria-expanded={accountOpen}
-              aria-controls={accountOpen ? "account-popover" : undefined}
-              onClick={() => setAccountOpen((open) => !open)}
-              className="account-avatar-button"
-            >
-              <IconUserCircle size={24} stroke={1.75} aria-hidden="true" />
+            <IconUserCircle size={24} stroke={1.75} aria-hidden="true" />
+          </button>
+          <div ref={accountPopoverRef} id="account-popover" popover="auto" className="trimi-account-popover">
+            <button type="button" className="account-license-button" onClick={openLicenseEntry}>
+              <IconKey size={16} stroke={2} aria-hidden="true" />
+              {license.state.status === "unlocked" ? "View License" : "Add License"}
             </button>
-            {accountOpen && (
-              <div
-                id="account-popover"
-                role="region"
-                aria-label="Account"
-                style={{
-                  position: "absolute", top: 42, right: 0, zIndex: 3, width: 220,
-                  borderRadius: "var(--radius-md)", background: "var(--bg-panel-solid)",
-                  boxShadow: "var(--island-shadow)", padding: 12,
-                  display: "flex", flexDirection: "column", gap: 10,
-                }}
-              >
-                {license.state.status === "unlocked" ? (
-                  <>
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-1)" }}>Licensed</div>
-                      <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 2, fontVariantNumeric: "tabular-nums" }}>
-                        Key ending {license.state.key.slice(-4)}
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      disabled={license.unlinking}
-                      onClick={async () => {
-                        await license.unlink();
-                        setLicenseUnlinked(true);
-                      }}
-                      className="unlink-device-button"
-                      style={{
-                        height: 40, borderRadius: "var(--radius-sm)", border: "none",
-                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-                        fontSize: 12, fontWeight: 500, cursor: license.unlinking ? "not-allowed" : "pointer",
-                        opacity: license.unlinking ? 0.6 : 1,
-                      }}
-                    >
-                      <IconLogout size={13} stroke={2} aria-hidden="true" />
-                      {license.unlinking ? "Unlinking…" : "Unlink this device"}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    {license.state.status === "checking" && (
-                      <div className="account-license-status" role="status">
-                        <IconLoader2 size={14} stroke={2} className="trimi-spin" aria-hidden="true" />
-                        Checking license
-                      </div>
-                    )}
-                    {license.state.status === "offline" && (
-                      <div className="account-license-status">License offline</div>
-                    )}
-                    {license.state.status === "locked" && (
-                      <div className="account-license-status">No license added</div>
-                    )}
-                    <button type="button" className="account-license-button" onClick={openLicenseEntry}>
-                      <IconKey size={14} stroke={2} aria-hidden="true" />
-                      Add license
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -371,7 +307,7 @@ function App() {
         style={{ display: "none" }}
         onChange={(event) => {
           const nextFile = event.target.files?.[0];
-          if (nextFile) importVideoFile(nextFile);
+          if (nextFile) importDroppedVideo(nextFile);
           event.currentTarget.value = "";
         }}
       />
@@ -395,12 +331,16 @@ function App() {
       </div>
 
       {licensePromptOpen && (
-        <ActivationGate
-          mode={licenseEntryRequested && license.state.status !== "unlocked" ? "locked" : license.state.status}
+        <LicenseDialog
+          state={license.state}
           onActivate={license.activate}
           activating={license.activating}
-          error={license.activateError}
-          onRetry={retryLicense}
+          activateError={license.activateError}
+          onUnlink={unlinkLicense}
+          unlinking={license.unlinking}
+          unlinkError={license.unlinkError}
+          onRetry={retryLicenseCheck}
+          returnFocusRef={accountButtonRef}
           onClose={closeLicensePrompt}
         />
       )}

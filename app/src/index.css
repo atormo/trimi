@@ -559,10 +559,21 @@ button:focus-visible,
 }
 
 .account-avatar-button:hover,
-.account-avatar-button:focus-visible,
-.account-avatar-button[aria-expanded="true"] {
-  background: var(--bg-chip-hover);
+.account-avatar-button:focus-visible {
+  background: transparent;
   color: var(--text-1);
+}
+
+.account-avatar-button:focus-visible {
+  outline-color: currentColor;
+}
+
+.account-avatar-button:has(+ .trimi-account-popover:popover-open),
+.account-avatar-button[data-license-open="true"] {
+  color: #111111;
+  background: transparent;
+  box-shadow: none;
+  outline: none;
 }
 
 .account-avatar-button:active,
@@ -588,9 +599,9 @@ button:focus-visible,
   padding: 0 14px;
   border: 0;
   border-radius: var(--radius-sm);
-  background: var(--bg-chip);
+  background: transparent;
   color: var(--text-1);
-  box-shadow: var(--control-shadow);
+  box-shadow: none;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -603,7 +614,7 @@ button:focus-visible,
 
 .account-license-button:hover,
 .account-license-button:focus-visible {
-  background: var(--bg-chip-hover);
+  background: transparent;
 }
 
 .try-sample-group {

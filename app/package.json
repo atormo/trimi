@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "test:license": "node --test tests/license-api.test.mjs",
+    "dev:license-test": "vite --config tests/license-fixture.config.ts",
+    "dev:license-demo": "vite --config tests/license-fixture.config.ts --port 5176",
     "preview": "vite preview"
   },
   "dependencies": {

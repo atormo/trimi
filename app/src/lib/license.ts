@@ -25,6 +25,7 @@ async function polarPost<T>(path: string, body: Record<string, unknown>): Promis
   try {
     response = await fetch(`${POLAR_API_BASE}${path}`, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...body, organization_id: ORGANIZATION_ID }),
     });
@@ -71,6 +72,7 @@ export async function deactivateLicense(key: string, activationId: string): Prom
   try {
     response = await fetch(`${POLAR_API_BASE}/deactivate`, {
       method: "POST",
+      signal: AbortSignal.timeout(15000),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ key, activation_id: activationId, organization_id: ORGANIZATION_ID }),
     });
