@@ -44,7 +44,6 @@ h1 { margin: 9px 0 0; font-size: 28px; font-weight: 500; }
 .license-dialog[open]::backdrop { animation: backdrop-in 220ms ease-out; }
 .dialog-content { position: relative; }
 .dialog-content:has(.success-card) { max-width: 550px; margin-inline: auto; }
-.close-card { position: absolute; top: -51px; right: 0; background: #f6f7f3; color: #595d58; border-radius: 50%; }
 .card-scene { position: relative; width: 100%; container-type: inline-size; }
 .license-card { position: relative; width: 100%; height: auto; aspect-ratio: 1.83; border-radius: 28px; background: #f5f5ef; box-shadow: 0 2px 4px #00000004, 0 24px 60px #0000001f; overflow: hidden; }
 .card-header, .card-footer { position: absolute; left: 5.1%; right: 5.1%; display: flex; align-items: center; justify-content: space-between; gap: 18px; }

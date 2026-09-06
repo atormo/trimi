@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent, type PointerEvent } from 'react';
-import { IconCheck, IconKey, IconLock, IconPlus, IconScissors, IconUserCircle, IconX } from '@tabler/icons-react';
+import { IconCheck, IconKey, IconLock, IconPlus, IconScissors, IconUserCircle } from '@tabler/icons-react';
 import logo from '../assets/trimi-logo.png';
 
 const DEMO_KEY = 'TRIMI-8F3A-72C9-BE41-6D05';
@@ -163,7 +163,6 @@ export function LicenseLab() {
 
     <dialog ref={dialog} className="license-dialog" aria-labelledby="license-dialog-title" aria-describedby={armed ? 'cut-instructions' : undefined} onCancel={event => { if (cutting) event.preventDefault(); }} onClose={() => { if (cutting) finishCut(); const previous = trigger.current; if (previous?.isConnected && !popover.current?.contains(previous)) previous.focus(); else avatar.current?.focus(); }} onClick={event => { if (event.target === event.currentTarget && !cutting) closeCard(); }}>
       <div className="dialog-content" onClick={event => event.stopPropagation()}>
-        {!cutting && <button type="button" className="close-card icon-button" onClick={closeCard} aria-label="Close license dialog"><IconX size={20} aria-hidden="true" /></button>}
         {cardState === 'unlinked' || cardState === 'activated' ? <section className="success-card" key={cardState}>
           <img className="brand-logo" src={logo} alt="Trimi" />
           <div className="success-icon"><IconCheck size={28} stroke={1.7} aria-hidden="true" /></div>

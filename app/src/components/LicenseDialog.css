@@ -20,7 +20,6 @@
 &[open]::backdrop { animation: trimi-license-backdrop-in 220ms ease-out; }
 .dialog-content { position: relative; }
 .dialog-content:has(.success-card) { max-width: 550px; margin-inline: auto; }
-.close-card { position: absolute; top: -51px; right: 0; background: #f6f7f3; color: #595d58; border-radius: 50%; }
 .card-scene { position: relative; width: 100%; container-type: inline-size; }
 .license-card { position: relative; width: 100%; height: auto; aspect-ratio: 1.83; border-radius: 28px; background: #f5f5ef; box-shadow: 0 2px 4px #00000004, 0 24px 60px #0000001f; overflow: hidden; }
 .card-header, .card-footer { position: absolute; left: 5.1%; right: 5.1%; display: flex; align-items: center; justify-content: space-between; gap: 18px; }
@@ -37,6 +36,7 @@
 .card-key-row { display: flex; align-items: center; justify-content: center; gap: 18px; }
 .license-key { font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace; font-size: clamp(14px, 3.7cqw, 32px); line-height: 1.4; font-weight: 400; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .card-footer { bottom: 8%; justify-content: center; }
+.card-footer[data-entry=true] { flex-direction: column; gap: 4px; }
 .unlink-button { color: #ba4039; }
 .license-card[data-armed=true] .card-key-row { opacity: .12; }
 .cut-line { position: absolute; top: 0; bottom: 0; left: calc(50% - 24px); width: 48px; padding: 0; border: 0; background: transparent; touch-action: none; color: #ba4039; animation: trimi-license-backdrop-in 160ms ease-out; }
@@ -60,9 +60,6 @@
 .cut-scissors { position: absolute; top: -14px; left: calc(50% - 14px); display: grid; place-items: center; width: 28px; height: 28px; color: #ba4039; transform: rotate(-90deg); }
 .cut-scissors svg { animation: trimi-license-scissors-snip 150ms ease-in-out 6 alternate; }
 .card-fragment .card-key-area { transition: none; }
-.card-guidance { position: absolute; top: calc(100% + 21px); width: 100%; text-align: center; font-size: 12px; line-height: 1.7; color: #292d29; }
-.card-guidance p { margin: 0; }
-.card-guidance p > span { color: #454b44; }
 .license-key-input { width: 100%; min-width: 0; padding: 0; border: 0; outline: none; box-shadow: none; background: transparent; color: #222820; text-align: center; caret-color: #398ee9; }
 .license-key-input::placeholder { color: #969b91; opacity: 1; }
 .key-error { font-size: 12px; color: #a2392d; margin: 12px 0 0; }
@@ -103,6 +100,8 @@
 @media (max-width: 640px) {
   & { padding: 65px 16px 115px; }
   .license-card { aspect-ratio: 1.45; border-radius: 20px; }
+  .license-card[data-entry=true] { min-height: 340px; }
+  .license-card[data-entry=true] .card-key-area { top: 44%; }
   .card-header .brand-logo { width: 75px; }
   .header-message { font-size: 10px; }
   .card-key-area { inset-inline: 5%; }
@@ -112,7 +111,6 @@
   .card-footer { bottom: 6%; }
   .card-footer .text-button { font-size: 11px; }
   .card-footer .text-button { gap: 5px; }
-  .card-guidance { font-size: 11px; }
   .card-footer .primary-button { font-size: 11px; padding: 10px 12px; }
   .success-card { padding: 25px 20px; }
   .success-card h2 { font-size: 23px; }

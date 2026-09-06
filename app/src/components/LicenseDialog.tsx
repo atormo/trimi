@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent, type RefObject } from 'react';
-import { IconCheck, IconKey, IconLoader2, IconScissors, IconX } from '@tabler/icons-react';
+import { IconCheck, IconKey, IconLoader2, IconScissors } from '@tabler/icons-react';
 import type { LicenseState } from '../hooks/useLicense';
 import logo from '../assets/trimi-logo.png';
 import './LicenseDialog.css';
@@ -158,7 +158,7 @@ export function LicenseDialog({ state, activating, activateError, unlinking, unl
 
   function cardFace(decorative = false) {
     const unlinkMode = armed || flow === 'unlinking' || cutting;
-    return <div className="license-card" data-armed={unlinkMode}>
+    return <div className="license-card" data-armed={unlinkMode} data-entry={entering}>
       <div className="card-header">
         <img className="brand-logo" src={logo} alt={decorative ? '' : 'Trimi'} />
         <div className="header-message" data-unlink={unlinkMode}>
@@ -172,15 +172,17 @@ export function LicenseDialog({ state, activating, activateError, unlinking, unl
         </div>
         {error && !decorative && <p className="key-error" id="trimi-license-error" role="alert">{error}</p>}
       </div>
-      <div className="card-footer">
-        {entering ? <button className="primary-button" type="submit" disabled={activating}>{activating ? 'Activating…' : 'Save license'}</button> : flow === 'unlinking' ? <span className="request-status" role="status">Unlinking this device…</span> : !armed && !cutting && <button ref={decorative ? undefined : unlinkButton} type="button" className="text-button unlink-button" onClick={() => setFlow('armed')}><IconScissors size={18} aria-hidden="true" />Unlink this device</button>}
+      <div className="card-footer" data-entry={entering}>
+        {entering ? <>
+          <button className="primary-button" type="submit" disabled={activating}>{activating ? 'Activating…' : 'Save license'}</button>
+          <a className="purchase-link" href="https://polar.sh/checkout/polar_c_iX6OeQw78TX3oxQA7cye3PBCxfcxaiKD28us84ZAEMi" target="_blank" rel="noreferrer">Don’t have a license? Get Trimi</a>
+        </> : flow === 'unlinking' ? <span className="request-status" role="status">Unlinking this device…</span> : !armed && !cutting && <button ref={decorative ? undefined : unlinkButton} type="button" className="text-button unlink-button" onClick={() => setFlow('armed')}><IconScissors size={18} aria-hidden="true" />Unlink this device</button>}
       </div>
     </div>;
   }
 
   return <dialog ref={dialog} className="trimi-license-dialog" aria-labelledby="trimi-license-title" aria-describedby={armed ? 'trimi-cut-instructions' : undefined} aria-busy={busy} onCancel={event => { if (busy) event.preventDefault(); }} onClose={() => { if (!dialog.current?.open) onClose(); }} onClick={event => { if (event.target === event.currentTarget && !busy) dialog.current?.close(); }}>
     <div className="dialog-content" onClick={event => event.stopPropagation()}>
-      {!cutting && <button type="button" className="close-card icon-button" disabled={busy} onClick={() => dialog.current?.close()} aria-label="Close license dialog"><IconX size={20} aria-hidden="true" /></button>}
       {success || serviceStatus ? <section className="success-card" key={success ? flow : state.status}>
         <img className="brand-logo" src={logo} alt="Trimi" />
         <div className="success-icon">{success ? <IconCheck size={28} stroke={1.7} aria-hidden="true" /> : state.status === 'checking' ? <IconLoader2 size={28} className="trimi-spin" aria-hidden="true" /> : <IconKey size={28} aria-hidden="true" />}</div>
@@ -203,7 +205,6 @@ export function LicenseDialog({ state, activating, activateError, unlinking, unl
         </form>
         {armed && <p className="sr-only" id="trimi-cut-instructions">Click the dotted line or drag upwards to unlink this device. This removes the videos from this editor. Your license can be activated again.</p>}
         {flow === 'unlinking' && <span className="sr-only" role="status">Unlinking this device…</span>}
-        {entering && <div className="card-guidance"><a className="purchase-link" href="https://polar.sh/checkout/polar_c_iX6OeQw78TX3oxQA7cye3PBCxfcxaiKD28us84ZAEMi" target="_blank" rel="noreferrer">Don’t have a license? Get Trimi</a></div>}
       </>}
     </div>
   </dialog>;

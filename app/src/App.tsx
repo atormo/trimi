@@ -35,6 +35,12 @@ function App() {
   const sampleBlobPromiseRef = useRef<Promise<Blob> | null>(null);
   const sampleLoadRequestRef = useRef(0);
 
+  useEffect(() => {
+    if (!licenseUnlinked || licensePromptOpen) return;
+    const timeout = window.setTimeout(() => setLicenseUnlinked(false), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [licenseUnlinked, licensePromptOpen]);
+
   const getSampleBlob = useCallback(() => {
     sampleBlobPromiseRef.current ??= fetch(SAMPLE_VIDEO_URL)
       .then((response) => {
