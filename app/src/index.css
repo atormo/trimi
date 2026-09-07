@@ -570,7 +570,7 @@ button:focus-visible,
 
 .account-avatar-button:has(+ .trimi-account-popover:popover-open),
 .account-avatar-button[data-license-open="true"] {
-  color: #111111;
+  color: var(--text-1);
   background: transparent;
   box-shadow: none;
   outline: none;
