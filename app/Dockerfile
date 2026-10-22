@@ -1,5 +1,4 @@
-# Static build, served by nginx. No server-side code, no secrets — this image
-# is safe to run even if trimi-site (the payment backend) is down or missing.
+# Free, static editor. No backend or API credentials required.
 FROM node:22-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

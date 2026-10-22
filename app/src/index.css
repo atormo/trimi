@@ -512,109 +512,20 @@ button:focus-visible,
   transform: scale(0.96);
 }
 
-.license-header-status {
-  min-height: 40px;
-  padding: 0 8px;
-  border: 0;
-  background: transparent;
-  color: var(--text-3);
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-.license-header-action {
-  cursor: pointer;
-  transition: color 150ms ease-out;
-}
-
-.license-header-action:hover,
-.license-header-action:focus-visible {
-  color: var(--text-1);
-}
-
-.license-unlinked-status {
-  color: var(--text-2);
-}
-
-.license-unlinked-status svg {
-  color: var(--tool-speed);
-}
-
-.account-avatar-button {
+.trimi-source-link {
   width: 40px;
   height: 40px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
-}
-
-.account-avatar-button:hover,
-.account-avatar-button:focus-visible {
-  background: transparent;
-  color: var(--text-1);
-}
-
-.account-avatar-button:focus-visible {
-  outline-color: currentColor;
-}
-
-.account-avatar-button:has(+ .trimi-account-popover:popover-open),
-.account-avatar-button[data-license-open="true"] {
-  color: var(--text-1);
-  background: transparent;
-  box-shadow: none;
-  outline: none;
-}
-
-.account-avatar-button:active,
-.account-license-button:active,
-.unlink-device-button:not(:disabled):active {
-  transform: scale(0.96);
-}
-
-.account-license-status {
-  min-height: 24px;
-  padding: 0 4px;
-  color: var(--text-3);
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  text-wrap: pretty;
-}
-
-.account-license-button {
-  min-height: 40px;
-  padding: 0 14px;
-  border: 0;
   border-radius: var(--radius-sm);
-  background: transparent;
-  color: var(--text-1);
-  box-shadow: none;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  transition: transform 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out;
 }
 
-.account-license-button:hover,
-.account-license-button:focus-visible {
-  background: transparent;
+.trimi-source-link:hover { color: var(--text-1); }
+.trimi-source-link:focus-visible {
+  outline: 2px solid var(--brand-blue);
+  outline-offset: 2px;
 }
 
 .try-sample-group {
@@ -701,53 +612,6 @@ button:focus-visible,
   border-radius: 2px;
 }
 
-.license-dialog-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 40px;
-  height: 40px;
-  padding: 0;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--text-2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.license-dialog-close,
-.license-dialog-action {
-  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out;
-}
-
-.license-dialog-close:hover,
-.license-dialog-close:focus-visible {
-  background: var(--bg-chip-hover);
-  color: var(--text-1);
-}
-
-.license-dialog-close:active,
-.license-dialog-action:not(:disabled):active {
-  transform: scale(0.96);
-}
-
-.unlink-device-button {
-  background: var(--bg-chip);
-  color: var(--text-2);
-  box-shadow: none;
-  transition: transform 150ms ease-out, background-color 150ms ease-out, color 150ms ease-out, box-shadow 150ms ease-out;
-}
-
-.unlink-device-button:not(:disabled):hover,
-.unlink-device-button:not(:disabled):focus-visible {
-  background: var(--danger-solid);
-  color: #ffffff;
-  box-shadow: var(--danger-action-shadow);
-}
-
 .transport-island {
   cursor: grab;
   touch-action: none;
@@ -776,14 +640,8 @@ button:focus-visible,
 
   .trimi-navigation,
   .trimi-home-link,
-  .license-header-action,
-  .account-avatar-button,
-  .account-license-button,
   .try-sample-button,
   .sample-video-link,
-  .license-dialog-close,
-  .license-dialog-action,
-  .unlink-device-button,
   .add-video-button,
   .clip-icon-button,
   .clip-card,

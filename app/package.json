@@ -1,5 +1,5 @@
 {
-  "name": "app",
+  "name": "trimi",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -7,9 +7,6 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "test:license": "node --test tests/license-api.test.mjs",
-    "dev:license-test": "vite --config tests/license-fixture.config.ts",
-    "dev:license-demo": "vite --config tests/license-fixture.config.ts --port 5176",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -28,5 +25,11 @@
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/atormo/trimi.git",
+    "directory": "app"
   }
 }

@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { IconCheck, IconKey, IconLoader2, IconMoon, IconSun, IconUserCircle, IconWorld } from "@tabler/icons-react";
+import { IconBrandGithub, IconLoader2, IconMoon, IconSun, IconWorld } from "@tabler/icons-react";
 import trimiLogo from "./assets/trimi-logo.png";
 import trimiLogoDark from "./assets/trimi-logo-dark.png";
 import { useVideoEditor } from "./hooks/useVideoEditor";
 import { useTheme } from "./hooks/useTheme";
-import { useLicense } from "./hooks/useLicense";
 import { VideoStage } from "./components/VideoStage";
 import { Timeline } from "./components/Timeline";
 import { Sidebar } from "./components/Sidebar";
-import { LicenseDialog } from "./components/LicenseDialog";
 
 const SAMPLE_VIDEO_URL = "/sample-wolf.mp4?v=15178051-1080p-silent";
 const SAMPLE_VIDEO_NAME = "wolfsample.mp4";
@@ -16,30 +14,16 @@ const SAMPLE_VIDEO_SOURCE_URL = "https://www.pexels.com/video/wolf-looking-aroun
 
 function App() {
   const editor = useVideoEditor();
-  const { addFile, clearClipSelection, clearFile, loadFile } = editor;
+  const { addFile, clearClipSelection, loadFile } = editor;
   const { theme, toggle } = useTheme();
-  const license = useLicense();
-  const { retry: retryLicenseCheck, unlink: unlinkCurrentLicense } = license;
   const hasVideo = Boolean(editor.videoUrl);
   const isSampleSelected = editor.file?.name === SAMPLE_VIDEO_NAME;
   const [logoMenuOpen, setLogoMenuOpen] = useState(false);
   const [logoMenuMotion, setLogoMenuMotion] = useState(false);
-  const [licensePromptOpen, setLicensePromptOpen] = useState(false);
-  const [licenseEntryRequested, setLicenseEntryRequested] = useState(false);
-  const [licenseUnlinked, setLicenseUnlinked] = useState(false);
   const [sampleLoadState, setSampleLoadState] = useState<"idle" | "loading" | "error">("idle");
-  const accountButtonRef = useRef<HTMLButtonElement | null>(null);
-  const accountPopoverRef = useRef<HTMLDivElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
-  const pendingDroppedFileRef = useRef<File | null>(null);
   const sampleBlobPromiseRef = useRef<Promise<Blob> | null>(null);
   const sampleLoadRequestRef = useRef(0);
-
-  useEffect(() => {
-    if (!licenseUnlinked || licensePromptOpen) return;
-    const timeout = window.setTimeout(() => setLicenseUnlinked(false), 3000);
-    return () => window.clearTimeout(timeout);
-  }, [licenseUnlinked, licensePromptOpen]);
 
   const getSampleBlob = useCallback(() => {
     sampleBlobPromiseRef.current ??= fetch(SAMPLE_VIDEO_URL)
@@ -77,7 +61,7 @@ function App() {
     if (!hasVideo) return;
     const clearSelectionOutsideClips = (event: PointerEvent) => {
       const target = event.target as Element | null;
-      if (target?.closest("[data-clip-selection-surface], .trimi-license-dialog")) return;
+      if (target?.closest("[data-clip-selection-surface]")) return;
       clearClipSelection();
     };
     document.addEventListener("pointerdown", clearSelectionOutsideClips);
@@ -92,67 +76,8 @@ function App() {
   }, [addFile, editor.clips.length, loadFile]);
 
   const requestVideoUpload = () => {
-    pendingDroppedFileRef.current = null;
-    if (license.state.status === "checking") return;
-    if (license.state.status === "unlocked") {
-      videoInputRef.current?.click();
-      return;
-    }
-    setLicenseEntryRequested(false);
-    setLicensePromptOpen(true);
+    videoInputRef.current?.click();
   };
-
-  const importDroppedVideo = useCallback((file: File) => {
-    if (license.state.status === "unlocked") {
-      importVideoFile(file);
-      return;
-    }
-
-    pendingDroppedFileRef.current = file;
-    setLicenseEntryRequested(false);
-    if (license.state.status !== "checking") setLicensePromptOpen(true);
-  }, [importVideoFile, license.state.status]);
-
-  useEffect(() => {
-    const pendingFile = pendingDroppedFileRef.current;
-    if (!pendingFile) return;
-
-    if (license.state.status === "unlocked") {
-      pendingDroppedFileRef.current = null;
-      importVideoFile(pendingFile);
-      return;
-    }
-
-    if (license.state.status !== "checking") setLicensePromptOpen(true);
-  }, [importVideoFile, license.state.status]);
-
-  const closeLicensePrompt = useCallback(() => {
-    const restoreAccountFocus = licenseEntryRequested;
-    pendingDroppedFileRef.current = null;
-    setLicensePromptOpen(false);
-    setLicenseEntryRequested(false);
-    if (restoreAccountFocus) requestAnimationFrame(() => accountButtonRef.current?.focus());
-  }, [licenseEntryRequested]);
-
-  const unlinkLicense = useCallback(async () => {
-    const unlinked = await unlinkCurrentLicense();
-    if (!unlinked) return false;
-    pendingDroppedFileRef.current = null;
-    sampleLoadRequestRef.current += 1;
-    clearFile();
-    setLicenseUnlinked(true);
-    if (hasVideo) void trySampleVideo();
-    else setSampleLoadState("idle");
-    return true;
-  }, [unlinkCurrentLicense, clearFile, trySampleVideo, hasVideo]);
-
-  const openLicenseEntry = useCallback(() => {
-    pendingDroppedFileRef.current = null;
-    accountPopoverRef.current?.hidePopover();
-    setLicenseUnlinked(false);
-    setLicenseEntryRequested(true);
-    setLicensePromptOpen(true);
-  }, []);
 
   const logo = (
     <img
@@ -253,26 +178,6 @@ function App() {
           )}
         </div>
         <div style={{ width: 240, display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2 }}>
-          {license.state.status === "checking" && (
-            <div className="license-header-status" role="status" aria-live="polite">
-              <IconLoader2 size={14} stroke={2} className="trimi-spin" aria-hidden="true" />
-              Checking license
-            </div>
-          )}
-          {license.state.status === "offline" && (
-            <button type="button" className="license-header-status license-header-action" onClick={() => {
-              setLicenseEntryRequested(false);
-              setLicensePromptOpen(true);
-            }}>
-              License offline
-            </button>
-          )}
-          {license.state.status === "locked" && licenseUnlinked && (
-            <div className="license-header-status license-unlinked-status" role="status" aria-live="polite">
-              <IconCheck size={14} stroke={2.2} aria-hidden="true" />
-              License unlinked
-            </div>
-          )}
           <button
             onClick={toggle}
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
@@ -285,23 +190,14 @@ function App() {
           >
             {theme === "dark" ? <IconSun size={22} stroke={1.9} /> : <IconMoon size={22} stroke={1.9} />}
           </button>
-          <button
-            ref={accountButtonRef}
-            type="button"
-            title="Account"
-            aria-label="Account"
-            popoverTarget="account-popover"
-            className="account-avatar-button"
-            data-license-open={licensePromptOpen}
+          <a
+            href="https://github.com/atormo/trimi"
+            className="trimi-source-link"
+            aria-label="Trimi source code on GitHub — free and open source"
+            title="Free and open source on GitHub"
           >
-            <IconUserCircle size={24} stroke={1.75} aria-hidden="true" />
-          </button>
-          <div ref={accountPopoverRef} id="account-popover" popover="auto" className="trimi-account-popover">
-            <button type="button" className="account-license-button" onClick={openLicenseEntry}>
-              <IconKey size={16} stroke={2} aria-hidden="true" />
-              {license.state.status === "unlocked" ? "View License" : "Add License"}
-            </button>
-          </div>
+            <IconBrandGithub size={22} stroke={1.75} aria-hidden="true" />
+          </a>
         </div>
       </div>
 
@@ -313,7 +209,7 @@ function App() {
         style={{ display: "none" }}
         onChange={(event) => {
           const nextFile = event.target.files?.[0];
-          if (nextFile) importDroppedVideo(nextFile);
+          if (nextFile) importVideoFile(nextFile);
           event.currentTarget.value = "";
         }}
       />
@@ -327,29 +223,13 @@ function App() {
         gap: 12,
         padding: "8px 16px 16px",
       }}>
-        <VideoStage editor={editor} onImportVideo={importDroppedVideo} />
+        <VideoStage editor={editor} onImportVideo={importVideoFile} />
         <Sidebar
           editor={editor}
           onAddVideo={requestVideoUpload}
-          addVideoDisabled={license.state.status === "checking"}
         />
         <Timeline editor={editor} />
       </div>
-
-      {licensePromptOpen && (
-        <LicenseDialog
-          state={license.state}
-          onActivate={license.activate}
-          activating={license.activating}
-          activateError={license.activateError}
-          onUnlink={unlinkLicense}
-          unlinking={license.unlinking}
-          unlinkError={license.unlinkError}
-          onRetry={retryLicenseCheck}
-          returnFocusRef={accountButtonRef}
-          onClose={closeLicensePrompt}
-        />
-      )}
     </div>
   );
 }
