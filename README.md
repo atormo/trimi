@@ -1,10 +1,37 @@
-# Trimi
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="app/src/assets/trimi-logo-dark.png">
+    <img src="app/src/assets/trimi-logo.png" alt="Trimi" width="240">
+  </picture>
+</p>
 
-**Trimi is now free and open source.** A focused video editor that runs in your browser. Import your own videos, trim and split clips, crop, adjust color and speed, mute audio, and export MP4 or GIF. All tools are available without an account, activation key, or backend.
+<h1 align="center">Simple video edits. Free and open source.</h1>
 
-- Editor: https://editor.trimi.app/
-- Website: https://trimi.app/
-- Source and issues: https://github.com/atormo/trimi
+<p align="center">
+  Trim, crop, and polish your videos right in your browser.<br>
+  No account. No activation key. Your videos stay on your device.
+</p>
+
+<p align="center">
+  <a href="https://editor.trimi.app/"><strong>Enter the editor ↗</strong></a>
+  &nbsp; · &nbsp;
+  <a href="https://trimi.app/">Website</a>
+  &nbsp; · &nbsp;
+  <a href="LICENSE">MIT license</a>
+</p>
+
+[![Trimi editor showing a video on the canvas, crop controls, and a clip timeline](docs/images/trimi-editor.webp)](https://editor.trimi.app/)
+
+<p align="center"><sub>Crop and reframe your video, with editing tools and the timeline in one place.</sub></p>
+
+## A small editor for everyday edits
+
+| Edit | Adjust | Export |
+| --- | --- | --- |
+| Trim and split clips | Color, speed, and audio | MP4 or GIF |
+| Crop and reframe | Preserve pitch or mute audio | Choose size and quality |
+
+All tools are free. Editing and export run locally in your browser, and you can run Trimi on your own server.
 
 ## Run locally
 
